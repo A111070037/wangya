@@ -1128,6 +1128,10 @@
             
             <!-- 小游戏浮层 - 独立于列表，固定在地图上方 -->
             <div id="miniGameOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); z-index: 2000; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <!-- 关闭按钮 -->
+                <button onclick="closeGameOverlay()" style="position: absolute; top: 8px; right: 8px; background: #e0e0e0; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#ccc'" onmouseout="this.style.background='#e0e0e0'" title="關閉遊戲">
+                    ✖️
+                </button>
                 <div style="text-align: center;">
                     <div style="font-size: 13px; color: #4D9980; font-weight: 500; margin-bottom: 8px;">
                         🎮 等待太久了？來玩個小遊戲吧！
@@ -1527,7 +1531,7 @@
         let gameCtx = null;
         let lastFrameTime = 0;
         const GRAVITY = 0.5;
-        const JUMP_STRENGTH = -10;
+        const JUMP_STRENGTH = -7.5; // 降低跳跃高度
         const CAT_SIZE = 35;
         const PILL_WIDTH = 25;
         const PILL_HEIGHT = 35;
@@ -3120,7 +3124,7 @@
             });
         }
         
-        // 取消当前请求
+        // 取消当前请求（但保留游戏）
         function cancelCurrentRequest() {
             // 取消防抖动定时器
             if (fetchTimeout) {
@@ -3140,23 +3144,18 @@
                 progressInterval = null;
             }
             
-            // 停止游戏
-            if (gameActive) {
-                stopMiniGame(false);
-            }
-            
             // 重置请求状态
             isRequesting = false;
             
-            // 显示取消提示
+            // 显示取消提示（保留游戏）
             const list = document.getElementById('placeList');
             if (list) {
-                const finalScore = gameScore > 0 ? `<p style="color: #4D9980; font-size: 16px; font-weight: 500;">🎮 遊戲分數：${gameScore}</p>` : '';
                 list.innerHTML = `
                     <div class="empty-state">
                         <h3>🚫 已取消搜尋</h3>
-                        ${finalScore}
-                        <p style="color: #999; margin: 12px 0;">您可以調整設定後重新搜尋</p>
+                        <p style="color: #999; margin: 12px 0;">
+                            ${gameActive ? '繼續玩遊戲，或調整設定後重新搜尋' : '您可以調整設定後重新搜尋'}
+                        </p>
                         <button onclick="fetchPlaces()" class="sync-btn" style="margin-top: 12px;">🔄 重新搜尋</button>
                     </div>
                 `;
@@ -3545,11 +3544,8 @@
             }
         }
 
-        // 停止游戏
+        // 停止游戏（crashed = true 表示撞到了，false 表示正常结束）
         function stopMiniGame(crashed = false) {
-            gameActive = false;
-            gameStarted = false;
-            
             // 移除所有事件监听器
             document.removeEventListener('keydown', handleGameKeyPress);
             if (gameCanvas) {
@@ -3557,35 +3553,97 @@
                 gameCanvas.removeEventListener('touchend', handleTouch);
             }
             
-            // 显示游戏结束画面
+            // 如果是撞到了，显示重新开始选项
             if (crashed && gameCanvas && gameCtx) {
                 try {
+                    gameActive = false;
+                    gameStarted = false;
+                    
                     const ctx = gameCtx;
-                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
                     ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
                     ctx.fillStyle = '#fff';
                     ctx.font = 'bold 18px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 10);
+                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 20);
                     ctx.font = '14px sans-serif';
-                    ctx.fillText(`最終分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 + 20);
+                    ctx.fillText(`分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 + 5);
+                    ctx.font = '12px sans-serif';
+                    ctx.fillStyle = '#4D9980';
+                    ctx.fillText('點擊重新開始', gameCanvas.width / 2, gameCanvas.height / 2 + 30);
                     
-                    // 2秒后隐藏游戏浮层
-                    setTimeout(() => {
-                        const gameOverlay = document.getElementById('miniGameOverlay');
-                        if (gameOverlay) {
-                            gameOverlay.style.display = 'none';
+                    // 添加重新开始的点击事件
+                    const restartGame = () => {
+                        if (gameCanvas) {
+                            gameCanvas.removeEventListener('click', restartGame);
+                            gameCanvas.removeEventListener('touchend', restartGame);
                         }
-                    }, 2000);
+                        // 重置游戏
+                        restartMiniGame();
+                    };
+                    
+                    gameCanvas.addEventListener('click', restartGame);
+                    gameCanvas.addEventListener('touchend', restartGame);
+                    
                 } catch (error) {
                     console.error('停止游戏错误:', error);
                 }
             } else {
+                // 搜索完成，强制结束游戏
+                gameActive = false;
+                gameStarted = false;
+                
                 // 直接隐藏游戏浮层
                 const gameOverlay = document.getElementById('miniGameOverlay');
                 if (gameOverlay) {
                     gameOverlay.style.display = 'none';
                 }
+            }
+        }
+
+        // 重新开始游戏
+        function restartMiniGame() {
+            gameActive = true;
+            gameStarted = false;
+            gameScore = 0;
+            catY = 130;
+            catVelocity = 0;
+            pills = [];
+            
+            // 更新分数显示
+            const scoreEl = document.getElementById('gameScore');
+            if (scoreEl) {
+                scoreEl.textContent = '0';
+            }
+            
+            // 重新添加事件
+            if (gameCanvas) {
+                gameCanvas.addEventListener('click', catJump);
+                gameCanvas.addEventListener('touchend', handleTouch);
+                document.addEventListener('keydown', handleGameKeyPress);
+            }
+            
+            // 重新启动游戏循环
+            runGame();
+        }
+
+        // 关闭游戏浮层
+        function closeGameOverlay() {
+            // 停止游戏
+            gameActive = false;
+            gameStarted = false;
+            
+            // 移除事件监听器
+            document.removeEventListener('keydown', handleGameKeyPress);
+            if (gameCanvas) {
+                gameCanvas.removeEventListener('click', catJump);
+                gameCanvas.removeEventListener('touchend', handleTouch);
+            }
+            
+            // 隐藏浮层
+            const gameOverlay = document.getElementById('miniGameOverlay');
+            if (gameOverlay) {
+                gameOverlay.style.display = 'none';
             }
         }
 
