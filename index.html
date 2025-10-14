@@ -2330,36 +2330,17 @@
                     ctx.fillText(healthTypes[type].icon + ' ' + healthTypes[type].name + '記錄', 60, yPosition);
                     yPosition += 50;
                     
-                    // 如果有圖表且記錄數量≥2且不是用藥記錄，則繪製圖表
-                    if (type !== 'medication' && typeRecords.length >= 2 && healthChart) {
+                    // 如果有圖表且記錄數量≥2且不是用藥記錄，則以固定尺寸繪製離屏圖表避免變形
+                    if (type !== 'medication' && typeRecords.length >= 2) {
                         try {
-                            const chartCanvas = document.getElementById('healthChart');
-                            if (chartCanvas) {
-                                // 保存當前圖表，臨時繪製此類型的圖表
-                                const originalType = currentHealthType;
-                                
-                                // 如果當前類型不是要匯出的類型，需要臨時切換
-                                if (currentHealthType !== type) {
-                                    // 暫時不顯示，只更新數據
-                                    const tempChart = createTempChart(type, typeRecords);
-                                    const tempCanvas = tempChart.canvas;
-                                    
-                                    // 繪製圖表到匯出canvas
-                                    const chartWidth = 1080;
-                                    const chartHeight = 400;
-                                    ctx.drawImage(tempCanvas, 60, yPosition, chartWidth, chartHeight);
-                                    yPosition += chartHeight + 30;
-                                    
-                                    // 銷毀臨時圖表
-                                    tempChart.destroy();
-                                } else {
-                                    // 繪製當前圖表
-                                    const chartWidth = 1080;
-                                    const chartHeight = 400;
-                                    ctx.drawImage(chartCanvas, 60, yPosition, chartWidth, chartHeight);
-                                    yPosition += chartHeight + 30;
-                                }
-                            }
+                            const chartWidth = 1080; // 匯出最終顯示寬度（CSS 像素）
+                            const chartHeight = 400;  // 匯出最終顯示高度（CSS 像素）
+                            const dpr = Math.max(2, window.devicePixelRatio || 1); // 提升清晰度，且避免拉伸
+
+                            const { canvas: offscreenCanvas, chart } = createExportChart(type, typeRecords, chartWidth, chartHeight, dpr);
+                            ctx.drawImage(offscreenCanvas, 60, yPosition, chartWidth, chartHeight);
+                            yPosition += chartHeight + 30;
+                            chart.destroy();
                         } catch (chartError) {
                             console.warn('圖表繪製失敗:', chartError);
                         }
@@ -2425,12 +2406,17 @@
             }
         }
 
-        // 創建臨時圖表用於匯出
-        function createTempChart(type, records) {
+        // 以固定尺寸與像素比創建離屏圖表，避免匯出時被壓縮變形
+        function createExportChart(type, records, cssWidth, cssHeight, devicePixelRatio = 2) {
             const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 1080;
-            tempCanvas.height = 400;
+            // 物理解像度：CSS 尺寸 * 像素比，確保清晰
+            tempCanvas.width = Math.floor(cssWidth * devicePixelRatio);
+            tempCanvas.height = Math.floor(cssHeight * devicePixelRatio);
+            tempCanvas.style.width = cssWidth + 'px';
+            tempCanvas.style.height = cssHeight + 'px';
             const ctx = tempCanvas.getContext('2d');
+            // 將坐標系縮放到 DPR，避免圖表被拉伸
+            ctx.scale(devicePixelRatio, devicePixelRatio);
             
             const sortedRecords = records.sort((a, b) => new Date(a.date) - new Date(b.date));
             const labels = sortedRecords.map(record => {
@@ -2439,7 +2425,7 @@
             });
 
             if (type === 'bloodPressure') {
-                return new Chart(ctx, {
+                const chart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -2482,8 +2468,9 @@
                         }
                     }
                 });
+                return { canvas: tempCanvas, chart };
             } else {
-                return new Chart(ctx, {
+                const chart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -2517,6 +2504,7 @@
                         }
                     }
                 });
+                return { canvas: tempCanvas, chart };
             }
         }
 
