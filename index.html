@@ -1122,7 +1122,16 @@
             💡 提示：如果加載很慢，試試選擇更小的搜尋範圍（500米或1公里）
         </div>
 
-        <div id="map" style="height: calc(100dvh - 400px); min-height: 250px;"></div>
+        <!-- 地图容器 - 添加边距和边框 -->
+        <div style="padding: 0 12px; margin-bottom: 12px; position: relative;">
+            <div id="map" style="height: calc(100dvh - 410px); min-height: 250px; border: 2px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
+            
+            <!-- 回到我的位置按钮 - 在地图缩放控制按钮下方 -->
+            <button id="myLocationBtn" onclick="goToMyLocation()" style="position: absolute; top: 92px; right: 24px; z-index: 1000; background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s;" title="回到我的位置" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
+                📍
+            </button>
+        </div>
+        
         <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
     </div>
 
@@ -1459,6 +1468,7 @@
         let displayedCount = 10; // 当前显示的数量
         const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
+        let myLocationMarker = null; // 用户位置标记
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -2897,7 +2907,15 @@
                 navigator.geolocation.getCurrentPosition((pos) => {
                     const { latitude, longitude } = pos.coords;
                     mapInstance.setView([latitude, longitude], 15);
-                    L.circle([latitude, longitude], { radius: 30, color: '#4D9980' }).addTo(mapInstance);
+                    
+                    // 保存用户位置标记
+                    myLocationMarker = L.circle([latitude, longitude], { 
+                        radius: 30, 
+                        color: '#4D9980',
+                        fillColor: '#4D9980',
+                        fillOpacity: 0.5
+                    }).addTo(mapInstance);
+                    
                     userPosition = { lat: latitude, lon: longitude };
                     debouncedFetchPlaces(latitude, longitude);
                 }, (err) => {
@@ -2913,6 +2931,60 @@
                 const center = mapInstance.getCenter();
                 debouncedFetchPlaces(center.lat, center.lng);
             });
+        }
+
+        // 回到我的位置
+        function goToMyLocation() {
+            if (userPosition) {
+                // 有保存的位置，直接跳转
+                mapInstance.setView([userPosition.lat, userPosition.lon], 15);
+                
+                // 让标记闪烁一下提示用户
+                if (myLocationMarker) {
+                    const originalRadius = 30;
+                    myLocationMarker.setRadius(50);
+                    setTimeout(() => myLocationMarker.setRadius(originalRadius), 300);
+                }
+            } else {
+                // 重新获取位置
+                const btn = document.getElementById('myLocationBtn');
+                btn.innerHTML = '⏳';
+                btn.disabled = true;
+                
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition((pos) => {
+                        const { latitude, longitude } = pos.coords;
+                        mapInstance.setView([latitude, longitude], 15);
+                        
+                        // 创建或更新位置标记
+                        if (myLocationMarker) {
+                            myLocationMarker.setLatLng([latitude, longitude]);
+                        } else {
+                            myLocationMarker = L.circle([latitude, longitude], { 
+                                radius: 30, 
+                                color: '#4D9980',
+                                fillColor: '#4D9980',
+                                fillOpacity: 0.5
+                            }).addTo(mapInstance);
+                        }
+                        
+                        userPosition = { lat: latitude, lon: longitude };
+                        btn.innerHTML = '📍';
+                        btn.disabled = false;
+                        
+                        // 重新加载附近数据
+                        fetchPlaces(latitude, longitude);
+                    }, (err) => {
+                        alert('無法獲取您的位置，請確認已允許定位權限');
+                        btn.innerHTML = '📍';
+                        btn.disabled = false;
+                    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+                } else {
+                    alert('您的瀏覽器不支持定位功能');
+                    btn.innerHTML = '📍';
+                    btn.disabled = false;
+                }
+            }
         }
 
         // 防抖动函数 - 只用于地图移动等频繁事件
