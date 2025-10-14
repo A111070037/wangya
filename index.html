@@ -894,6 +894,9 @@
                     <button class="category-btn" onclick="changeCategory('保健品')">保健品</button>
                 </div>
                 <div class="action-buttons">
+                    <button class="icon-btn" onclick="cycleMedicineSort()" title="排序">
+                        ⇅
+                    </button>
                     <button class="icon-btn" onclick="showHistory()">
                         🕒
                     </button>
@@ -1303,6 +1306,7 @@
         let history = [];
         let healthRecords = [];
         let currentCategory = '處方藥';
+        let medicineSortMode = localStorage.getItem('medicineSortMode') || 'name_asc';
         let currentHealthType = 'bloodPressure';
         let editingMedicineId = null;
         let currentMedicineDetail = null;
@@ -1341,6 +1345,18 @@
 
             if (savedMedicines) {
                 medicines = JSON.parse(savedMedicines);
+                // 升級：補上 createdAt 以支援依添加時間排序
+                let upgraded = false;
+                medicines.forEach(m => {
+                    if (!m.createdAt) {
+                        const fallbackTs = parseInt(m.id) || Date.now();
+                        m.createdAt = fallbackTs;
+                        upgraded = true;
+                    }
+                });
+                if (upgraded) {
+                    localStorage.setItem('medicines', JSON.stringify(medicines));
+                }
             }
 
             if (savedHistory) {
@@ -1414,6 +1430,9 @@
                 );
             }
 
+            // 排序
+            filteredMedicines = sortMedicines(filteredMedicines, medicineSortMode);
+
             if (filteredMedicines.length === 0) {
                 listContainer.innerHTML = `
                     <div class="empty-state">
@@ -1446,6 +1465,44 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        // 藥品排序
+        function sortMedicines(list, mode) {
+            const arr = list.slice();
+            switch (mode) {
+                case 'name_asc':
+                    return arr.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+                case 'name_desc':
+                    return arr.sort((a, b) => b.name.localeCompare(a.name, 'zh-Hant'));
+                case 'stock_asc':
+                    return arr.sort((a, b) => (a.stock || 0) - (b.stock || 0));
+                case 'stock_desc':
+                    return arr.sort((a, b) => (b.stock || 0) - (a.stock || 0));
+                case 'created_desc':
+                    return arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                case 'created_asc':
+                    return arr.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+                default:
+                    return arr;
+            }
+        }
+
+        function cycleMedicineSort() {
+            const modes = ['created_desc', 'created_asc', 'name_asc', 'name_desc', 'stock_desc', 'stock_asc'];
+            const idx = modes.indexOf(medicineSortMode);
+            medicineSortMode = modes[(idx + 1) % modes.length];
+            localStorage.setItem('medicineSortMode', medicineSortMode);
+            renderMedicines(document.getElementById('searchInput').value.toLowerCase());
+            const labels = {
+                created_desc: '新增時間 新→舊',
+                created_asc: '新增時間 舊→新',
+                name_asc: '名稱 A→Z',
+                name_desc: '名稱 Z→A',
+                stock_desc: '庫存 高→低',
+                stock_asc: '庫存 低→高'
+            };
+            showToast('排序：' + labels[medicineSortMode], 'success');
         }
 
         // 顯示藥品詳情
@@ -1653,7 +1710,8 @@
                 stock,
                 notes,
                 timeSlots: selectedSlots,
-                imageData: imagePreview.style.display !== 'none' ? imagePreview.src : null
+                imageData: imagePreview.style.display !== 'none' ? imagePreview.src : null,
+                createdAt: Date.now()
             };
 
             try {
