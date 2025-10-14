@@ -1658,6 +1658,13 @@
 
             renderHealthRecords();
             updateChart();
+            
+            // 顯示切換提示
+            const totalRecords = healthRecords.length;
+            const filteredRecords = healthRecords.filter(record => record.type === type);
+            if (totalRecords > 0 && filteredRecords.length === 0) {
+                showToast(`切換到${healthTypes[type].name}，當前沒有此類型的記錄`, 'info');
+            }
         }
 
         // 渲染健康記錄
@@ -1957,7 +1964,7 @@
             renderHealthRecords();
             updateChart();
             closeModal('addHealthRecordModal');
-            showToast('健康記錄保存成功！', 'success');
+            showToast(`${healthTypes[record.type].name}記錄保存成功！`, 'success');
         }
 
         function editHealthRecord(recordId) {
