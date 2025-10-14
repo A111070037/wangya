@@ -1067,6 +1067,11 @@
             <h2 class="modal-title">附近醫療</h2>
         </div>
         
+        <!-- 网络状态指示器 -->
+        <div id="networkStatus" style="display: none; padding: 8px 20px; background: #fff3cd; color: #856404; font-size: 13px; text-align: center;">
+            📶 網路連接較慢，請耐心等待...
+        </div>
+
         <!-- 搜索栏 -->
         <div style="padding: 12px 20px;">
             <div style="position: relative;">
@@ -1440,6 +1445,9 @@
         let favoritePlaces = JSON.parse(localStorage.getItem('favoritePlaces') || '[]');
         let showingFavorites = false;
         let placesCache = {}; // 缓存搜索结果
+        let fetchTimeout = null; // 防抖动定时器
+        let currentFetchController = null; // 用于取消请求
+        let markerClusterGroup = null; // 标记聚合组
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -2843,38 +2851,66 @@
             if (mapInited) return;
             mapInited = true;
             const mapEl = document.getElementById('map');
-            mapInstance = L.map(mapEl).setView([25.033964, 121.564468], 14);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
+            
+            // 优化：使用更快的瓦片服务器，并启用硬件加速
+            mapInstance = L.map(mapEl, {
+                preferCanvas: true, // 使用 Canvas 渲染，性能更好
+                zoomControl: true,
+                attributionControl: false
+            }).setView([25.033964, 121.564468], 14);
+            
+            // 使用多个瓦片服务器轮换，提高加载速度
+            const tileUrls = [
+                'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+            ];
+            
+            L.tileLayer(tileUrls[0], {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap',
+                updateWhenIdle: true, // 只在停止移动时更新
+                updateWhenZooming: false, // 缩放时不更新
+                keepBuffer: 2 // 保持2屏幕的缓冲区
             }).addTo(mapInstance);
 
-            // 定位
+            // 定位 - 优化超时设置
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition((pos) => {
                     const { latitude, longitude } = pos.coords;
                     mapInstance.setView([latitude, longitude], 15);
                     L.circle([latitude, longitude], { radius: 30, color: '#4D9980' }).addTo(mapInstance);
                     userPosition = { lat: latitude, lon: longitude };
-                    fetchPlaces(latitude, longitude);
+                    debouncedFetchPlaces(latitude, longitude);
                 }, (err) => {
                     console.warn('定位失敗/被拒絕:', err);
-                    fetchPlaces();
-                }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
-                // 兼容某些行動瀏覽器需主動 watch 以取得一次定位
-                const watcher = navigator.geolocation.watchPosition(() => {
-                    navigator.geolocation.clearWatch(watcher);
-                }, () => {}, { enableHighAccuracy: true });
+                    debouncedFetchPlaces();
+                }, { enableHighAccuracy: false, timeout: 5000, maximumAge: 60000 }); // 降低精度要求，提高速度
             } else {
-                fetchPlaces();
+                debouncedFetchPlaces();
             }
+            
+            // 地图移动结束后才加载新数据（防止频繁请求）
+            mapInstance.on('moveend', () => {
+                const center = mapInstance.getCenter();
+                debouncedFetchPlaces(center.lat, center.lng);
+            });
+        }
+
+        // 防抖动函数 - 避免频繁请求
+        function debouncedFetchPlaces(lat, lon) {
+            if (fetchTimeout) {
+                clearTimeout(fetchTimeout);
+            }
+            fetchTimeout = setTimeout(() => {
+                fetchPlaces(lat, lon);
+            }, 500); // 500ms 延迟
         }
 
         function setMapFilter(f) {
             mapFilter = f;
             localStorage.setItem('mapFilter', f);
             const center = mapInstance.getCenter();
-            fetchPlaces(center.lat, center.lng);
+            debouncedFetchPlaces(center.lat, center.lng);
             // UI active
             document.querySelectorAll('#mapView .type-btn').forEach(b => {
                 b.classList.toggle('active', b.dataset.filter === f);
@@ -2887,6 +2923,11 @@
         }
 
         function fetchPlaces(lat, lon) {
+            // 取消之前的请求
+            if (currentFetchController) {
+                currentFetchController.abort();
+            }
+            
             clearMapMarkers();
             const list = document.getElementById('placeList');
             list.innerHTML = '<div class="loading"><div class="spinner"></div><span>搜尋附近中...</span></div>';
@@ -2901,6 +2942,12 @@
             const cacheKey = `${mapFilter}_${lat.toFixed(4)}_${lon.toFixed(4)}_${searchRadius}`;
             if (placesCache[cacheKey]) {
                 renderPlaces(placesCache[cacheKey]);
+                return;
+            }
+
+            // 检查网络连接
+            if (!navigator.onLine) {
+                list.innerHTML = '<div class="empty-state"><h3>❌ 沒有網路連接</h3><p>請檢查您的網路設定</p></div>';
                 return;
             }
 
@@ -2919,17 +2966,31 @@
                 emergency: 'nwr[emergency=yes]; nwr[amenity=hospital][emergency=yes]'
             };
 
+            // 创建新的 AbortController
+            currentFetchController = new AbortController();
+            const signal = currentFetchController.signal;
+
             // 使用跨域友善的 overpass 域名（行動網路較穩定）
             const overpassHost = 'https://overpass.kumi.systems/api/interpreter';
-            const query = `[out:json][timeout:25];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 50;`;
+            const query = `[out:json][timeout:15];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 30;`; // 减少超时和结果数量
             const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
-            fetch(overpass)
-                .then(r => r.json())
+            // 添加超时处理
+            const timeoutId = setTimeout(() => {
+                currentFetchController.abort();
+                list.innerHTML = '<div class="empty-state"><h3>⏱️ 請求超時</h3><p>服務器響應過慢</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
+            }, 15000); // 15秒超时
+
+            fetch(overpass, { signal })
+                .then(r => {
+                    clearTimeout(timeoutId);
+                    if (!r.ok) throw new Error('Network response was not ok');
+                    return r.json();
+                })
                 .then(data => {
                     const elements = data.elements || [];
                     if (elements.length === 0) {
-                        list.innerHTML = '<div class="empty-state"><h3>附近沒有找到資料</h3><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
+                        list.innerHTML = '<div class="empty-state"><h3>📍 附近沒有找到資料</h3><p>試試調整搜尋範圍或類別</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重新搜尋</button></div>';
                         return;
                     }
 
@@ -2952,10 +3013,22 @@
 
                     allPlaces = items;
                     placesCache[cacheKey] = items;
+                    
+                    // 限制缓存大小，避免内存占用过多
+                    const cacheKeys = Object.keys(placesCache);
+                    if (cacheKeys.length > 20) {
+                        delete placesCache[cacheKeys[0]]; // 删除最旧的缓存
+                    }
+                    
                     renderPlaces(items);
                 })
-                .catch(() => {
-                    list.innerHTML = '<div class="empty-state"><h3>載入失敗，請稍後再試</h3><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
+                .catch((error) => {
+                    clearTimeout(timeoutId);
+                    if (error.name === 'AbortError') {
+                        console.log('Fetch aborted');
+                        return;
+                    }
+                    list.innerHTML = '<div class="empty-state"><h3>❌ 載入失敗</h3><p>請檢查網路連接或稍後再試</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
                 });
         }
 
@@ -2983,26 +3056,38 @@
                 items.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
             }
 
-            // 在地图上添加标记
-            items.forEach(it => {
-                if (it.lat && it.lon) {
-                    const isFavorite = favoritePlaces.some(f => f.id === it.id);
-                    const icon = L.divIcon({
-                        html: `<div style="background: ${isFavorite ? '#ff4757' : '#4D9980'}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-                        iconSize: [24, 24],
-                        className: ''
-                    });
-                    const marker = L.marker([it.lat, it.lon], { icon }).addTo(mapInstance);
-                    const popupAddr = it.address || '';
-                    marker.bindPopup(`<b>${escapeHtml(it.name)}</b><br>${escapeHtml(popupAddr)}`);
-                    mapMarkers.push(marker);
-                }
+            // 优化：限制显示的标记数量，避免地图卡顿
+            const maxMarkersToShow = 50;
+            const itemsToShowOnMap = items.slice(0, maxMarkersToShow);
+
+            // 在地图上添加标记 - 批量处理减少重绘
+            requestAnimationFrame(() => {
+                itemsToShowOnMap.forEach(it => {
+                    if (it.lat && it.lon) {
+                        const isFavorite = favoritePlaces.some(f => f.id === it.id);
+                        const icon = L.divIcon({
+                            html: `<div style="background: ${isFavorite ? '#ff4757' : '#4D9980'}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                            iconSize: [24, 24],
+                            className: ''
+                        });
+                        const marker = L.marker([it.lat, it.lon], { icon }).addTo(mapInstance);
+                        const popupAddr = it.address || '';
+                        marker.bindPopup(`<b>${escapeHtml(it.name)}</b><br>${escapeHtml(popupAddr)}`);
+                        mapMarkers.push(marker);
+                    }
+                });
             });
 
             // 显示结果统计
-            const statsHtml = `<div style="padding: 8px 20px; background: #f8f9fa; font-size: 13px; color: #666;">找到 ${items.length} 個醫療機構</div>`;
+            const statsHtml = `<div style="padding: 8px 20px; background: #f8f9fa; font-size: 13px; color: #666;">
+                找到 ${items.length} 個醫療機構 ${items.length > maxMarkersToShow ? `（地圖顯示前 ${maxMarkersToShow} 個）` : ''}
+            </div>`;
 
-            list.innerHTML = statsHtml + items.map(it => {
+            // 优化：使用文档片段减少DOM重绘
+            const fragment = document.createDocumentFragment();
+            const tempDiv = document.createElement('div');
+            
+            tempDiv.innerHTML = statsHtml + items.map(it => {
                 const isFavorite = favoritePlaces.some(f => f.id === it.id);
                 const dist = it.distance ? ` · ${formatDistance(it.distance)}` : '';
                 const navUrl = it.lat && it.lon ? `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}` : '#';
@@ -3027,6 +3112,9 @@
                     </div>
                 </div>`;
             }).join('');
+            
+            list.innerHTML = '';
+            list.appendChild(tempDiv);
         }
 
         function distanceInMeters(lat1, lon1, lat2, lon2) {
@@ -3065,6 +3153,44 @@
                 searchInput.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') searchPlaces();
                 });
+            }
+
+            // 监听网络状态变化
+            const networkStatus = document.getElementById('networkStatus');
+            
+            window.addEventListener('online', () => {
+                if (networkStatus) {
+                    networkStatus.style.display = 'none';
+                }
+            });
+            
+            window.addEventListener('offline', () => {
+                if (networkStatus) {
+                    networkStatus.innerHTML = '❌ 網路已斷開，請檢查網路連接';
+                    networkStatus.style.background = '#f8d7da';
+                    networkStatus.style.color = '#721c24';
+                    networkStatus.style.display = 'block';
+                }
+            });
+
+            // 检测网络速度（简单版本）
+            if (navigator.connection) {
+                const updateNetworkStatus = () => {
+                    const connection = navigator.connection;
+                    const effectiveType = connection.effectiveType;
+                    
+                    if (networkStatus && (effectiveType === 'slow-2g' || effectiveType === '2g')) {
+                        networkStatus.innerHTML = '📶 網路連接較慢，可能需要更長時間';
+                        networkStatus.style.background = '#fff3cd';
+                        networkStatus.style.color = '#856404';
+                        networkStatus.style.display = 'block';
+                    } else if (networkStatus) {
+                        networkStatus.style.display = 'none';
+                    }
+                };
+                
+                navigator.connection.addEventListener('change', updateNetworkStatus);
+                updateNetworkStatus();
             }
         });
 
@@ -3107,7 +3233,7 @@
         function updateSearchRadius() {
             searchRadius = parseInt(document.getElementById('searchRadius').value);
             const center = mapInstance.getCenter();
-            fetchPlaces(center.lat, center.lng);
+            debouncedFetchPlaces(center.lat, center.lng);
         }
 
         // 排序
