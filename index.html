@@ -1139,6 +1139,11 @@
             <button id="myLocationBtn" onclick="goToMyLocation()" style="position: absolute; top: 92px; right: 24px; z-index: 1000; background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s;" title="回到我的位置" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
                 📍
             </button>
+
+            <!-- 在此搜尋按鈕（地圖移動後顯示） -->
+            <button id="searchAreaBtn" onclick="searchHere()" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 1200; display: none; background: #4D9980; color: #fff; border: none; border-radius: 20px; padding: 10px 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer;">
+                在此搜尋
+            </button>
         </div>
         
         <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
@@ -2937,11 +2942,16 @@
                 debouncedFetchPlaces();
             }
             
-            // 地图移动结束后才加载新数据（防止频繁请求）
-            mapInstance.on('moveend', () => {
-                const center = mapInstance.getCenter();
-                debouncedFetchPlaces(center.lat, center.lng);
-            });
+            // 地圖移動不自動重新搜尋；顯示「在此搜尋」按鈕供使用者手動觸發
+            const searchAreaBtn = document.getElementById('searchAreaBtn');
+            if (searchAreaBtn) {
+                mapInstance.on('movestart', () => {
+                    searchAreaBtn.style.display = 'block';
+                });
+                mapInstance.on('zoomstart', () => {
+                    searchAreaBtn.style.display = 'block';
+                });
+            }
         }
 
         // 回到我的位置
@@ -3454,6 +3464,15 @@
                 p.address.toLowerCase().includes(searchTerm)
             );
             renderPlaces(filtered);
+        }
+
+        // 在此搜尋（以目前地圖中心發起搜尋）
+        function searchHere() {
+            const btn = document.getElementById('searchAreaBtn');
+            if (btn) btn.style.display = 'none';
+            const center = mapInstance.getCenter();
+            cancelCurrentRequest();
+            fetchPlaces(center.lat, center.lng);
         }
 
         // 按Enter键搜索
