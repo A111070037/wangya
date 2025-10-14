@@ -528,6 +528,193 @@
             cursor: pointer;
         }
 
+        /* 健康記錄相關樣式 */
+        .health-type-selector {
+            background: rgba(255,255,255,0.05);
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .type-buttons {
+            display: flex;
+            gap: 10px;
+            padding: 0 20px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .type-buttons::-webkit-scrollbar {
+            display: none;
+        }
+
+        .type-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: rgba(128,128,128,0.1);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-width: 70px;
+            flex-shrink: 0;
+        }
+
+        .type-btn.active {
+            background: #4D9980;
+            color: white;
+        }
+
+        .type-icon {
+            font-size: 24px;
+        }
+
+        .type-name {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .health-content {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .sync-section {
+            padding: 16px 20px;
+            background: rgba(77, 153, 128, 0.05);
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .sync-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #4D9980;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .sync-btn:hover {
+            background: #3D7A65;
+        }
+
+        .sync-icon {
+            font-size: 16px;
+        }
+
+        .health-records-list {
+            padding: 20px;
+        }
+
+        .health-record-item {
+            background: #F5F6F7;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .health-record-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .health-record-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .health-record-type {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .health-record-time {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .health-record-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #4D9980;
+            margin-bottom: 8px;
+        }
+
+        .health-record-note {
+            font-size: 14px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        .chart-container {
+            padding: 20px;
+            background: white;
+            margin: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        #healthChart {
+            height: 300px !important;
+        }
+
+        .export-types {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .export-types .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .export-types .checkbox-group:hover {
+            background: #e5e5e5;
+        }
+
+        .export-types .checkbox-group input[type="checkbox"]:checked + span {
+            color: #4D9980;
+            font-weight: 500;
+        }
+
+        /* 日期分組標題 */
+        .date-group {
+            margin-bottom: 20px;
+        }
+
+        .date-group-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #4D9980;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 2px solid #4D9980;
+        }
+
         /* Toast 提示 */
         .toast {
             position: fixed;
@@ -627,15 +814,78 @@
     <div id="healthView" class="view-container">
         <div class="header">
             <h2 class="modal-title">健康紀錄</h2>
-        </div>
-        <div class="profile-section" id="healthRecords">
-            <div class="empty-state">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <h3>暫無健康紀錄</h3>
-                <p>您的服藥紀錄將顯示在這裡</p>
+            <div class="action-buttons">
+                <button class="icon-btn" onclick="showExportOptions()" title="匯出記錄">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                </button>
             </div>
+        </div>
+        
+        <!-- 健康指標類型選擇器 -->
+        <div class="health-type-selector">
+            <div class="type-buttons">
+                <button class="type-btn active" data-type="bloodPressure" onclick="changeHealthType('bloodPressure')">
+                    <span class="type-icon">❤️</span>
+                    <span class="type-name">血壓</span>
+                </button>
+                <button class="type-btn" data-type="bloodSugar" onclick="changeHealthType('bloodSugar')">
+                    <span class="type-icon">🩸</span>
+                    <span class="type-name">血糖</span>
+                </button>
+                <button class="type-btn" data-type="heartRate" onclick="changeHealthType('heartRate')">
+                    <span class="type-icon">💓</span>
+                    <span class="type-name">心率</span>
+                </button>
+                <button class="type-btn" data-type="bloodOxygen" onclick="changeHealthType('bloodOxygen')">
+                    <span class="type-icon">🫁</span>
+                    <span class="type-name">血氧</span>
+                </button>
+                <button class="type-btn" data-type="weight" onclick="changeHealthType('weight')">
+                    <span class="type-icon">⚖️</span>
+                    <span class="type-name">體重</span>
+                </button>
+                <button class="type-btn" data-type="medication" onclick="changeHealthType('medication')">
+                    <span class="type-icon">💊</span>
+                    <span class="type-name">用藥紀錄</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="health-content">
+            <!-- 同步按鈕（僅在用藥記錄顯示） -->
+            <div id="syncButton" class="sync-section" style="display: none;">
+                <button class="sync-btn" onclick="syncMedicationRecords()">
+                    <span class="sync-icon">🔄</span>
+                    <span>同步藥品服用記錄</span>
+                </button>
+            </div>
+
+            <!-- 健康記錄列表 -->
+            <div class="health-records-list" id="healthRecordsList">
+                <div class="empty-state">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <h3 id="emptyStateTitle">暫無血壓記錄</h3>
+                    <p>點擊右下方 + 按鈕添加新記錄</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 圖表區域 -->
+        <div class="chart-container" id="chartContainer" style="display: none;">
+            <canvas id="healthChart"></canvas>
+        </div>
+
+        <!-- 底部添加按鈕 -->
+        <div class="bottom-actions">
+            <button class="fab" onclick="showAddHealthRecord()" title="添加健康記錄">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+            </button>
         </div>
     </div>
 
@@ -787,13 +1037,158 @@
         </div>
     </div>
 
+    <!-- 添加健康記錄模態窗口 -->
+    <div id="addHealthRecordModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">添加健康記錄</h3>
+                <button class="close-btn" onclick="closeModal('addHealthRecordModal')">×</button>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">記錄類型</label>
+                <select id="healthRecordType" class="form-input" onchange="updateHealthRecordForm()">
+                    <option value="bloodPressure">血壓</option>
+                    <option value="bloodSugar">血糖</option>
+                    <option value="heartRate">心率</option>
+                    <option value="bloodOxygen">血氧</option>
+                    <option value="weight">體重</option>
+                    <option value="medication">用藥記錄</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">日期與時間</label>
+                <input type="datetime-local" id="healthRecordDate" class="form-input">
+            </div>
+
+            <!-- 血壓專用輸入 -->
+            <div id="bloodPressureInputs" class="form-group">
+                <label class="form-label">血壓數值</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="systolicPressure" class="form-input" placeholder="收縮壓" style="flex: 1;">
+                    <span>/</span>
+                    <input type="number" id="diastolicPressure" class="form-input" placeholder="舒張壓" style="flex: 1;">
+                    <span>mmHg</span>
+                </div>
+            </div>
+
+            <!-- 其他數值輸入 -->
+            <div id="singleValueInput" class="form-group">
+                <label class="form-label">測量值</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="healthRecordValue" class="form-input" placeholder="數值" step="0.1">
+                    <span id="healthRecordUnit">mmHg</span>
+                </div>
+            </div>
+
+            <!-- 用藥記錄專用輸入 -->
+            <div id="medicationInputs" class="form-group" style="display: none;">
+                <label class="form-label">藥品名稱</label>
+                <input type="text" id="healthMedicationName" class="form-input" placeholder="請輸入藥品名稱">
+                
+                <label class="form-label" style="margin-top: 15px;">劑量</label>
+                <input type="text" id="healthMedicationDosage" class="form-input" placeholder="例如：一天兩次 5mg">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">備註</label>
+                <textarea id="healthRecordNote" class="form-input" rows="3" placeholder="其他備註資訊"></textarea>
+            </div>
+
+            <button class="btn-primary" onclick="saveHealthRecord()">保存</button>
+        </div>
+    </div>
+
+    <!-- 編輯健康記錄模態窗口 -->
+    <div id="editHealthRecordModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">編輯健康記錄</h3>
+                <button class="close-btn" onclick="closeModal('editHealthRecordModal')">×</button>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">記錄類型</label>
+                <input type="text" id="editRecordType" class="form-input" readonly>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">日期與時間</label>
+                <input type="datetime-local" id="editRecordDate" class="form-input">
+            </div>
+
+            <div id="editValueInputs" class="form-group"></div>
+
+            <div class="form-group">
+                <label class="form-label">備註</label>
+                <textarea id="editRecordNote" class="form-input" rows="3"></textarea>
+            </div>
+
+            <button class="btn-primary" onclick="updateHealthRecord()">保存修改</button>
+            <button class="btn-danger" onclick="deleteHealthRecord()">刪除記錄</button>
+        </div>
+    </div>
+
+    <!-- 匯出選項模態窗口 -->
+    <div id="exportOptionsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">匯出健康記錄</h3>
+                <button class="close-btn" onclick="closeModal('exportOptionsModal')">×</button>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">選擇要匯出的記錄類型</label>
+                <div class="export-types">
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-bloodPressure" value="bloodPressure" checked>
+                        <span>血壓</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-bloodSugar" value="bloodSugar" checked>
+                        <span>血糖</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-heartRate" value="heartRate" checked>
+                        <span>心率</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-bloodOxygen" value="bloodOxygen" checked>
+                        <span>血氧</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-weight" value="weight" checked>
+                        <span>體重</span>
+                    </label>
+                    <label class="checkbox-group">
+                        <input type="checkbox" id="export-medication" value="medication" checked>
+                        <span>用藥記錄</span>
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn-primary" onclick="exportToPDF()">匯出為 PDF</button>
+            <button class="btn-primary" onclick="exportToImage()" style="background: #28a745; margin-top: 10px;">匯出為圖片</button>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- jsPDF -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
     <script>
         // 數據結構
         let medicines = [];
         let history = [];
+        let healthRecords = [];
         let currentCategory = '處方藥';
+        let currentHealthType = 'bloodPressure';
         let editingMedicineId = null;
         let currentMedicineDetail = null;
+        let editingHealthRecordId = null;
+        let healthChart = null;
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -822,6 +1217,7 @@
         function loadData() {
             const savedMedicines = localStorage.getItem('medicines');
             const savedHistory = localStorage.getItem('history');
+            const savedHealthRecords = localStorage.getItem('healthRecords');
             
             if (savedMedicines) {
                 medicines = JSON.parse(savedMedicines);
@@ -830,12 +1226,17 @@
             if (savedHistory) {
                 history = JSON.parse(savedHistory);
             }
+            
+            if (savedHealthRecords) {
+                healthRecords = JSON.parse(savedHealthRecords);
+            }
         }
 
         // 保存數據
         function saveData() {
             localStorage.setItem('medicines', JSON.stringify(medicines));
             localStorage.setItem('history', JSON.stringify(history));
+            localStorage.setItem('healthRecords', JSON.stringify(healthRecords));
         }
 
         // 載入個人資料
@@ -1211,18 +1612,56 @@
             showModal('historyModal');
         }
 
+        // 健康記錄類型配置
+        const healthTypes = {
+            bloodPressure: { name: '血壓', icon: '❤️', unit: 'mmHg', color: '#dc3545' },
+            bloodSugar: { name: '血糖', icon: '🩸', unit: 'mmol/L', color: '#fd7e14' },
+            heartRate: { name: '心率', icon: '💓', unit: 'bpm', color: '#e83e8c' },
+            bloodOxygen: { name: '血氧', icon: '🫁', unit: '%', color: '#007bff' },
+            weight: { name: '體重', icon: '⚖️', unit: 'kg', color: '#28a745' },
+            medication: { name: '用藥記錄', icon: '💊', unit: '', color: '#6f42c1' }
+        };
+
+        // 切換健康記錄類型
+        function changeHealthType(type) {
+            currentHealthType = type;
+            
+            // 更新按鈕狀態
+            document.querySelectorAll('.type-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.type === type) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // 顯示/隱藏同步按鈕
+            const syncButton = document.getElementById('syncButton');
+            if (type === 'medication') {
+                syncButton.style.display = 'block';
+            } else {
+                syncButton.style.display = 'none';
+            }
+
+            // 更新空狀態標題
+            document.getElementById('emptyStateTitle').textContent = `暫無${healthTypes[type].name}記錄`;
+
+            renderHealthRecords();
+            updateChart();
+        }
+
         // 渲染健康記錄
         function renderHealthRecords() {
-            const container = document.getElementById('healthRecords');
+            const container = document.getElementById('healthRecordsList');
+            const filteredRecords = healthRecords.filter(record => record.type === currentHealthType);
             
-            if (history.length === 0) {
+            if (filteredRecords.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <h3>暫無健康紀錄</h3>
-                        <p>您的服藥紀錄將顯示在這裡</p>
+                        <h3 id="emptyStateTitle">暫無${healthTypes[currentHealthType].name}記錄</h3>
+                        <p>點擊右下方 + 按鈕添加新記錄</p>
                     </div>
                 `;
                 return;
@@ -1230,12 +1669,12 @@
 
             // 按日期分組
             const groupedByDate = {};
-            history.forEach(item => {
-                const dateKey = new Date(item.date).toLocaleDateString('zh-TW');
+            filteredRecords.forEach(record => {
+                const dateKey = new Date(record.date).toLocaleDateString('zh-TW');
                 if (!groupedByDate[dateKey]) {
                     groupedByDate[dateKey] = [];
                 }
-                groupedByDate[dateKey].push(item);
+                groupedByDate[dateKey].push(record);
             });
 
             const sortedDates = Object.keys(groupedByDate).sort((a, b) => 
@@ -1243,16 +1682,58 @@
             );
 
             container.innerHTML = sortedDates.map(date => `
-                <div style="margin-bottom: 24px;">
-                    <h3 style="margin-bottom: 12px; color: #4D9980;">${date}</h3>
-                    ${groupedByDate[date].map(item => `
-                        <div class="history-item">
-                            <div class="history-medicine">${item.medicineName}</div>
-                            <div class="history-time">${timeSlotNames[item.slot]} - ${item.dosage}</div>
+                <div class="date-group">
+                    <div class="date-group-title">${formatDateHeader(date)}</div>
+                    ${groupedByDate[date].sort((a, b) => new Date(b.date) - new Date(a.date)).map(record => `
+                        <div class="health-record-item" onclick="editHealthRecord('${record.id}')">
+                            <div class="health-record-header">
+                                <div class="health-record-type">
+                                    <span>${healthTypes[record.type].icon}</span>
+                                    <span>${healthTypes[record.type].name}</span>
+                                </div>
+                                <div class="health-record-time">${formatTime(new Date(record.date))}</div>
+                            </div>
+                            <div class="health-record-value">${formatHealthValue(record)}</div>
+                            ${record.note ? `<div class="health-record-note">${record.note}</div>` : ''}
                         </div>
                     `).join('')}
                 </div>
             `).join('');
+        }
+
+        // 格式化健康記錄數值
+        function formatHealthValue(record) {
+            if (record.type === 'bloodPressure') {
+                return `${record.value}/${record.value2} ${healthTypes[record.type].unit}`;
+            } else if (record.type === 'medication') {
+                return `${record.medicationName || '未知藥物'}${record.dosage ? ' (' + record.dosage + ')' : ''}`;
+            } else {
+                return `${record.value} ${healthTypes[record.type].unit}`;
+            }
+        }
+
+        // 格式化日期標題
+        function formatDateHeader(dateString) {
+            const date = new Date(dateString);
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            if (date.toDateString() === today.toDateString()) {
+                return '今天';
+            } else if (date.toDateString() === yesterday.toDateString()) {
+                return '昨天';
+            } else {
+                return dateString;
+            }
+        }
+
+        // 格式化時間
+        function formatTime(date) {
+            return date.toLocaleTimeString('zh-TW', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
         }
 
         // 切換視圖
@@ -1369,6 +1850,587 @@
                     dialog.remove();
                 }
             };
+        }
+
+        // 健康記錄相關功能
+        function showAddHealthRecord() {
+            document.getElementById('healthRecordType').value = currentHealthType;
+            document.getElementById('healthRecordDate').value = new Date().toISOString().slice(0, 16);
+            document.getElementById('healthRecordNote').value = '';
+            document.getElementById('systolicPressure').value = '';
+            document.getElementById('diastolicPressure').value = '';
+            document.getElementById('healthRecordValue').value = '';
+            document.getElementById('healthMedicationName').value = '';
+            document.getElementById('healthMedicationDosage').value = '';
+            
+            updateHealthRecordForm();
+            showModal('addHealthRecordModal');
+        }
+
+        function updateHealthRecordForm() {
+            const type = document.getElementById('healthRecordType').value;
+            const bloodPressureInputs = document.getElementById('bloodPressureInputs');
+            const singleValueInput = document.getElementById('singleValueInput');
+            const medicationInputs = document.getElementById('medicationInputs');
+            const unitSpan = document.getElementById('healthRecordUnit');
+
+            // 隱藏所有輸入區域
+            bloodPressureInputs.style.display = 'none';
+            singleValueInput.style.display = 'none';
+            medicationInputs.style.display = 'none';
+
+            if (type === 'bloodPressure') {
+                bloodPressureInputs.style.display = 'block';
+            } else if (type === 'medication') {
+                medicationInputs.style.display = 'block';
+            } else {
+                singleValueInput.style.display = 'block';
+                unitSpan.textContent = healthTypes[type].unit;
+            }
+        }
+
+        function saveHealthRecord() {
+            const type = document.getElementById('healthRecordType').value;
+            const date = document.getElementById('healthRecordDate').value;
+            const note = document.getElementById('healthRecordNote').value.trim();
+
+            if (!date) {
+                showToast('請選擇日期時間', 'error');
+                return;
+            }
+
+            let record = {
+                id: Date.now().toString(),
+                type: type,
+                date: new Date(date).toISOString(),
+                note: note || null
+            };
+
+            if (type === 'bloodPressure') {
+                const systolic = parseFloat(document.getElementById('systolicPressure').value);
+                const diastolic = parseFloat(document.getElementById('diastolicPressure').value);
+                
+                if (!systolic || !diastolic) {
+                    showToast('請填寫血壓數值', 'error');
+                    return;
+                }
+                
+                record.value = systolic;
+                record.value2 = diastolic;
+            } else if (type === 'medication') {
+                const medicationName = document.getElementById('healthMedicationName').value.trim();
+                const dosage = document.getElementById('healthMedicationDosage').value.trim();
+                
+                if (!medicationName) {
+                    showToast('請填寫藥品名稱', 'error');
+                    return;
+                }
+                
+                record.medicationName = medicationName;
+                record.dosage = dosage || null;
+                record.value = 0;
+            } else {
+                const value = parseFloat(document.getElementById('healthRecordValue').value);
+                
+                if (!value && value !== 0) {
+                    showToast('請填寫測量值', 'error');
+                    return;
+                }
+                
+                record.value = value;
+            }
+
+            healthRecords.push(record);
+            saveData();
+            renderHealthRecords();
+            updateChart();
+            closeModal('addHealthRecordModal');
+            showToast('健康記錄保存成功！', 'success');
+        }
+
+        function editHealthRecord(recordId) {
+            const record = healthRecords.find(r => r.id === recordId);
+            if (!record) return;
+
+            editingHealthRecordId = recordId;
+            document.getElementById('editRecordType').value = healthTypes[record.type].name;
+            document.getElementById('editRecordDate').value = new Date(record.date).toISOString().slice(0, 16);
+            document.getElementById('editRecordNote').value = record.note || '';
+
+            const editValueInputs = document.getElementById('editValueInputs');
+            
+            if (record.type === 'bloodPressure') {
+                editValueInputs.innerHTML = `
+                    <label class="form-label">血壓數值</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="editSystolicPressure" class="form-input" value="${record.value}" style="flex: 1;">
+                        <span>/</span>
+                        <input type="number" id="editDiastolicPressure" class="form-input" value="${record.value2}" style="flex: 1;">
+                        <span>mmHg</span>
+                    </div>
+                `;
+            } else if (record.type === 'medication') {
+                editValueInputs.innerHTML = `
+                    <label class="form-label">藥品名稱</label>
+                    <input type="text" id="editMedicationName" class="form-input" value="${record.medicationName || ''}">
+                    
+                    <label class="form-label" style="margin-top: 15px;">劑量</label>
+                    <input type="text" id="editMedicationDosage" class="form-input" value="${record.dosage || ''}">
+                `;
+            } else {
+                editValueInputs.innerHTML = `
+                    <label class="form-label">測量值</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="number" id="editHealthValue" class="form-input" value="${record.value}" step="0.1" style="flex: 1;">
+                        <span>${healthTypes[record.type].unit}</span>
+                    </div>
+                `;
+            }
+
+            showModal('editHealthRecordModal');
+        }
+
+        function updateHealthRecord() {
+            const record = healthRecords.find(r => r.id === editingHealthRecordId);
+            if (!record) return;
+
+            const date = document.getElementById('editRecordDate').value;
+            const note = document.getElementById('editRecordNote').value.trim();
+
+            if (!date) {
+                showToast('請選擇日期時間', 'error');
+                return;
+            }
+
+            record.date = new Date(date).toISOString();
+            record.note = note || null;
+
+            if (record.type === 'bloodPressure') {
+                const systolic = parseFloat(document.getElementById('editSystolicPressure').value);
+                const diastolic = parseFloat(document.getElementById('editDiastolicPressure').value);
+                
+                if (!systolic || !diastolic) {
+                    showToast('請填寫血壓數值', 'error');
+                    return;
+                }
+                
+                record.value = systolic;
+                record.value2 = diastolic;
+            } else if (record.type === 'medication') {
+                const medicationName = document.getElementById('editMedicationName').value.trim();
+                const dosage = document.getElementById('editMedicationDosage').value.trim();
+                
+                if (!medicationName) {
+                    showToast('請填寫藥品名稱', 'error');
+                    return;
+                }
+                
+                record.medicationName = medicationName;
+                record.dosage = dosage || null;
+            } else {
+                const value = parseFloat(document.getElementById('editHealthValue').value);
+                
+                if (!value && value !== 0) {
+                    showToast('請填寫測量值', 'error');
+                    return;
+                }
+                
+                record.value = value;
+            }
+
+            saveData();
+            renderHealthRecords();
+            updateChart();
+            closeModal('editHealthRecordModal');
+            showToast('健康記錄更新成功！', 'success');
+        }
+
+        function deleteHealthRecord() {
+            showConfirmDialog(
+                '刪除健康記錄',
+                '確定要刪除這條健康記錄嗎？',
+                () => {
+                    healthRecords = healthRecords.filter(r => r.id !== editingHealthRecordId);
+                    saveData();
+                    renderHealthRecords();
+                    updateChart();
+                    closeModal('editHealthRecordModal');
+                    showToast('健康記錄已刪除', 'success');
+                }
+            );
+        }
+
+        // 同步藥品記錄
+        function syncMedicationRecords() {
+            const newRecords = [];
+            
+            history.forEach(h => {
+                // 檢查是否已存在相同的用藥記錄
+                const exists = healthRecords.some(r => 
+                    r.type === 'medication' &&
+                    r.medicationName === h.medicineName &&
+                    new Date(r.date).toDateString() === new Date(h.date).toDateString() &&
+                    r.note === `${timeSlotNames[h.slot]} - ${h.dosage}`
+                );
+
+                if (!exists) {
+                    newRecords.push({
+                        id: Date.now().toString() + Math.random(),
+                        type: 'medication',
+                        date: h.date,
+                        medicationName: h.medicineName,
+                        dosage: h.dosage,
+                        note: `${timeSlotNames[h.slot]} - ${h.dosage}`,
+                        value: 0
+                    });
+                }
+            });
+
+            if (newRecords.length > 0) {
+                healthRecords.push(...newRecords);
+                saveData();
+                renderHealthRecords();
+                showToast(`已同步 ${newRecords.length} 條藥品記錄`, 'success');
+            } else {
+                showToast('沒有新的藥品記錄需要同步', 'info');
+            }
+        }
+
+        // 匯出功能
+        function showExportOptions() {
+            showModal('exportOptionsModal');
+        }
+
+        function exportToPDF() {
+            const selectedTypes = getSelectedExportTypes();
+            if (selectedTypes.length === 0) {
+                showToast('請選擇至少一種記錄類型', 'error');
+                return;
+            }
+
+            const filteredRecords = healthRecords.filter(record => selectedTypes.includes(record.type));
+            if (filteredRecords.length === 0) {
+                showToast('沒有可匯出的記錄', 'error');
+                return;
+            }
+
+            try {
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                
+                // 標題
+                doc.setFontSize(20);
+                doc.text('健康記錄報告', 105, 20, { align: 'center' });
+                
+                // 生成時間
+                doc.setFontSize(12);
+                const now = new Date();
+                const dateString = now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW');
+                doc.text('生成時間：' + dateString, 105, 35, { align: 'center' });
+                
+                let yPosition = 50;
+                
+                // 按類型分組處理
+                for (const type of selectedTypes) {
+                    const typeRecords = filteredRecords.filter(r => r.type === type);
+                    if (typeRecords.length === 0) continue;
+                    
+                    // 類型標題
+                    doc.setFontSize(16);
+                    doc.setTextColor(77, 153, 128);
+                    doc.text(healthTypes[type].name + '記錄', 20, yPosition);
+                    yPosition += 10;
+                    
+                    // 記錄列表
+                    doc.setFontSize(10);
+                    doc.setTextColor(0, 0, 0);
+                    
+                    typeRecords.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(record => {
+                        if (yPosition > 270) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        
+                        const date = new Date(record.date);
+                        const dateStr = date.toLocaleDateString('zh-TW') + ' ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+                        
+                        let valueStr = '';
+                        if (record.type === 'bloodPressure') {
+                            valueStr = `${record.value}/${record.value2} ${healthTypes[record.type].unit}`;
+                        } else if (record.type === 'medication') {
+                            valueStr = `${record.medicationName || '未知藥物'}${record.dosage ? ' (' + record.dosage + ')' : ''}`;
+                        } else {
+                            valueStr = `${record.value} ${healthTypes[record.type].unit}`;
+                        }
+                        
+                        doc.text(dateStr, 20, yPosition);
+                        doc.text(valueStr, 80, yPosition);
+                        
+                        if (record.note) {
+                            doc.text('備註：' + record.note, 20, yPosition + 5);
+                            yPosition += 5;
+                        }
+                        
+                        yPosition += 10;
+                    });
+                    
+                    yPosition += 10;
+                }
+                
+                // 保存PDF
+                doc.save('健康記錄報告_' + new Date().toISOString().slice(0, 10) + '.pdf');
+                showToast('PDF匯出成功！', 'success');
+                closeModal('exportOptionsModal');
+                
+            } catch (error) {
+                console.error('PDF匯出失敗:', error);
+                showToast('PDF匯出失敗，請重試', 'error');
+            }
+        }
+
+        function exportToImage() {
+            const selectedTypes = getSelectedExportTypes();
+            if (selectedTypes.length === 0) {
+                showToast('請選擇至少一種記錄類型', 'error');
+                return;
+            }
+
+            const filteredRecords = healthRecords.filter(record => selectedTypes.includes(record.type));
+            if (filteredRecords.length === 0) {
+                showToast('沒有可匯出的記錄', 'error');
+                return;
+            }
+
+            try {
+                // 創建canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = 800;
+                canvas.height = 1000;
+                
+                // 填充白色背景
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 標題
+                ctx.font = 'bold 32px Arial';
+                ctx.fillStyle = '#4D9980';
+                ctx.textAlign = 'center';
+                ctx.fillText('健康記錄報告', canvas.width / 2, 50);
+                
+                // 生成時間
+                ctx.font = '16px Arial';
+                ctx.fillStyle = '#666';
+                const now = new Date();
+                const dateString = now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW');
+                ctx.fillText('生成時間：' + dateString, canvas.width / 2, 80);
+                
+                let yPosition = 120;
+                
+                // 按類型分組處理
+                for (const type of selectedTypes) {
+                    const typeRecords = filteredRecords.filter(r => r.type === type);
+                    if (typeRecords.length === 0) continue;
+                    
+                    // 類型標題
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillStyle = '#4D9980';
+                    ctx.textAlign = 'left';
+                    ctx.fillText(healthTypes[type].name + '記錄', 40, yPosition);
+                    yPosition += 30;
+                    
+                    // 記錄列表
+                    ctx.font = '14px Arial';
+                    ctx.fillStyle = '#333';
+                    
+                    typeRecords.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(record => {
+                        if (yPosition > 950) return; // 防止超出畫布
+                        
+                        const date = new Date(record.date);
+                        const dateStr = date.toLocaleDateString('zh-TW') + ' ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+                        
+                        let valueStr = '';
+                        if (record.type === 'bloodPressure') {
+                            valueStr = `${record.value}/${record.value2} ${healthTypes[record.type].unit}`;
+                        } else if (record.type === 'medication') {
+                            valueStr = `${record.medicationName || '未知藥物'}${record.dosage ? ' (' + record.dosage + ')' : ''}`;
+                        } else {
+                            valueStr = `${record.value} ${healthTypes[record.type].unit}`;
+                        }
+                        
+                        ctx.fillText(dateStr, 60, yPosition);
+                        ctx.fillText(valueStr, 300, yPosition);
+                        
+                        if (record.note) {
+                            ctx.font = '12px Arial';
+                            ctx.fillStyle = '#666';
+                            ctx.fillText('備註：' + record.note, 60, yPosition + 20);
+                            yPosition += 20;
+                        }
+                        
+                        yPosition += 30;
+                    });
+                    
+                    yPosition += 20;
+                }
+                
+                // 轉換為圖片並下載
+                canvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = '健康記錄報告_' + new Date().toISOString().slice(0, 10) + '.png';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    showToast('圖片匯出成功！', 'success');
+                    closeModal('exportOptionsModal');
+                });
+                
+            } catch (error) {
+                console.error('圖片匯出失敗:', error);
+                showToast('圖片匯出失敗，請重試', 'error');
+            }
+        }
+
+        function getSelectedExportTypes() {
+            const checkboxes = document.querySelectorAll('.export-types input[type="checkbox"]:checked');
+            return Array.from(checkboxes).map(cb => cb.value);
+        }
+
+        // 圖表功能
+        function updateChart() {
+            const filteredRecords = healthRecords.filter(record => record.type === currentHealthType);
+            
+            // 只有非用藥記錄且有多個數據點時才顯示圖表
+            if (currentHealthType === 'medication' || filteredRecords.length < 2) {
+                document.getElementById('chartContainer').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('chartContainer').style.display = 'block';
+            
+            // 銷毀現有圖表
+            if (healthChart) {
+                healthChart.destroy();
+            }
+
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            const sortedRecords = filteredRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const labels = sortedRecords.map(record => {
+                const date = new Date(record.date);
+                return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
+            });
+
+            if (currentHealthType === 'bloodPressure') {
+                // 血壓雙線圖表
+                healthChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: '收縮壓',
+                                data: sortedRecords.map(record => record.value),
+                                borderColor: '#dc3545',
+                                backgroundColor: '#dc3545',
+                                tension: 0.1,
+                                pointRadius: 4
+                            },
+                            {
+                                label: '舒張壓',
+                                data: sortedRecords.map(record => record.value2),
+                                borderColor: '#007bff',
+                                backgroundColor: '#007bff',
+                                tension: 0.1,
+                                pointRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${healthTypes[currentHealthType].name}趨勢圖`,
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                }
+                            },
+                            legend: {
+                                display: true,
+                                position: 'top'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: healthTypes[currentHealthType].unit
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '日期'
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                // 單線圖表
+                healthChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: healthTypes[currentHealthType].name,
+                            data: sortedRecords.map(record => record.value),
+                            borderColor: healthTypes[currentHealthType].color,
+                            backgroundColor: healthTypes[currentHealthType].color,
+                            tension: 0.1,
+                            pointRadius: 4,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${healthTypes[currentHealthType].name}趨勢圖`,
+                                font: {
+                                    size: 16,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: healthTypes[currentHealthType].unit
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: '日期'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
         }
 
         // 初始化應用
