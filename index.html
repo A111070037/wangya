@@ -1532,6 +1532,7 @@
         let lastFrameTime = 0;
         let gameSpeed = 3; // 游戏速度，会逐渐增加
         let isOnGround = true; // 是否在地面上
+        let userClosedGame = false; // 用户是否手动关闭了游戏
         const GRAVITY = 0.5;
         const JUMP_STRENGTH = -7.5; // 降低跳跃高度
         const CAT_SIZE = 35;
@@ -3170,17 +3171,41 @@
         function showLoadingProgress(container, message, progress) {
             const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
             
-            // 10秒后启动游戏
-            if (elapsed >= 10 && !gameActive) {
+            // 10秒后启动游戏（但如果用户关闭了游戏，就不再显示）
+            if (elapsed >= 10 && !gameActive && !userClosedGame) {
                 startMiniGame(container, message, elapsed);
+                return;
+            }
+            
+            // 如果游戏正在运行，就不更新下方的进度条（游戏在独立浮层）
+            if (gameActive) {
                 return;
             }
             
             // 智能提示和操作：根据实际等待时间
             let actionButtons = '';
-            if (elapsed > 10 && gameActive) {
+            if (elapsed > 10) {
+                const gameButton = userClosedGame ? 
+                    `<button onclick="reopenGame();" 
+                            style="background: linear-gradient(135deg, #9dc88d 0%, #7db87d 100%); 
+                                   color: white; 
+                                   border: 1px solid #7db87d; 
+                                   padding: 10px 20px; 
+                                   border-radius: 8px; 
+                                   font-size: 14px; 
+                                   font-weight: 500;
+                                   cursor: pointer; 
+                                   box-shadow: 0 2px 6px rgba(125,184,125,0.3);
+                                   transition: all 0.3s ease;
+                                   display: inline-flex;
+                                   align-items: center;
+                                   gap: 6px;">
+                        <span style="font-size: 16px;">🎮</span> 打開遊戲
+                    </button>` : '';
+                
                 actionButtons = `
                     <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        ${gameButton}
                         <button onclick="cancelCurrentRequest(); quickFix();" 
                                 style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
                                        color: #4a5568; 
@@ -3619,6 +3644,7 @@
                 // 搜索完成，强制结束游戏
                 gameActive = false;
                 gameStarted = false;
+                // 注意：这里不设置 userClosedGame，因为是系统自动关闭的
                 
                 // 直接隐藏游戏浮层
                 const gameOverlay = document.getElementById('miniGameOverlay');
@@ -3661,6 +3687,7 @@
             // 停止游戏
             gameActive = false;
             gameStarted = false;
+            userClosedGame = true; // 标记用户主动关闭了游戏
             
             // 移除事件监听器
             document.removeEventListener('keydown', handleGameKeyPress);
@@ -3673,6 +3700,22 @@
             const gameOverlay = document.getElementById('miniGameOverlay');
             if (gameOverlay) {
                 gameOverlay.style.display = 'none';
+            }
+            
+            // 更新下方的进度条显示，显示"打开游戏"按钮
+            const list = document.getElementById('placeList');
+            if (list && isRequesting) {
+                showLoadingProgress(list, currentMessage, currentProgress);
+            }
+        }
+
+        // 重新打开游戏
+        function reopenGame() {
+            userClosedGame = false;
+            const list = document.getElementById('placeList');
+            if (list && isRequesting) {
+                const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
+                startMiniGame(list, currentMessage, elapsed);
             }
         }
 
@@ -3702,6 +3745,9 @@
             // 生成新的请求ID
             const thisRequestId = ++requestId;
             isRequesting = true;
+            
+            // 重置游戏关闭标志（新的搜索开始）
+            userClosedGame = false;
             
             clearMapMarkers();
             const list = document.getElementById('placeList');
