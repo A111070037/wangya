@@ -1066,13 +1066,53 @@
         <div class="header">
             <h2 class="modal-title">附近醫療</h2>
         </div>
-        <div style="padding: 12px 20px; display: flex; gap: 8px; overflow-x: auto;">
+        
+        <!-- 搜索栏 -->
+        <div style="padding: 12px 20px;">
+            <div style="position: relative;">
+                <input type="text" id="mapSearchInput" placeholder="搜尋醫療機構名稱..." style="width: 100%; padding: 10px 40px 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px;">
+                <svg onclick="searchPlaces()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; cursor: pointer; color: #666;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+        </div>
+
+        <!-- 类别筛选 -->
+        <div style="padding: 0 20px 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
+            <button class="type-btn active" data-filter="all" onclick="setMapFilter('all')"><span class="type-name">全部</span></button>
             <button class="type-btn" data-filter="pharmacy" onclick="setMapFilter('pharmacy')"><span class="type-name">藥局</span></button>
             <button class="type-btn" data-filter="hospital" onclick="setMapFilter('hospital')"><span class="type-name">大醫院</span></button>
+            <button class="type-btn" data-filter="internal" onclick="setMapFilter('internal')"><span class="type-name">內科</span></button>
+            <button class="type-btn" data-filter="pediatric" onclick="setMapFilter('pediatric')"><span class="type-name">小兒科</span></button>
+            <button class="type-btn" data-filter="dental" onclick="setMapFilter('dental')"><span class="type-name">牙科</span></button>
+            <button class="type-btn" data-filter="eye" onclick="setMapFilter('eye')"><span class="type-name">眼科</span></button>
             <button class="type-btn" data-filter="ent" onclick="setMapFilter('ent')"><span class="type-name">耳鼻喉科</span></button>
             <button class="type-btn" data-filter="obgyn" onclick="setMapFilter('obgyn')"><span class="type-name">婦產科</span></button>
+            <button class="type-btn" data-filter="ortho" onclick="setMapFilter('ortho')"><span class="type-name">骨科</span></button>
+            <button class="type-btn" data-filter="derm" onclick="setMapFilter('derm')"><span class="type-name">皮膚科</span></button>
+            <button class="type-btn" data-filter="emergency" onclick="setMapFilter('emergency')"><span class="type-name">急診</span></button>
         </div>
-        <div id="map" style="height: calc(100dvh - 220px); min-height: 300px;"></div>
+
+        <!-- 工具栏：范围和排序 -->
+        <div style="padding: 0 20px 12px; display: flex; gap: 8px; align-items: center;">
+            <select id="searchRadius" onchange="updateSearchRadius()" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                <option value="1000">1公里內</option>
+                <option value="2000" selected>2公里內</option>
+                <option value="5000">5公里內</option>
+                <option value="10000">10公里內</option>
+            </select>
+            <select id="sortBy" onchange="sortPlaces()" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
+                <option value="distance">距離排序</option>
+                <option value="name">名稱排序</option>
+            </select>
+            <button onclick="toggleFavorites()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+                <svg id="favIcon" style="width: 20px; height: 20px; color: #666;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="map" style="height: calc(100dvh - 400px); min-height: 250px;"></div>
         <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
     </div>
 
@@ -1392,9 +1432,14 @@
         // Map related state
         let mapInstance = null;
         let mapInited = false;
-        let mapFilter = 'pharmacy';
+        let mapFilter = 'all';
         let mapMarkers = [];
         let userPosition = null; // {lat, lon}
+        let searchRadius = 2000; // 默认2公里
+        let allPlaces = []; // 存储所有搜索结果
+        let favoritePlaces = JSON.parse(localStorage.getItem('favoritePlaces') || '[]');
+        let showingFavorites = false;
+        let placesCache = {}; // 缓存搜索结果
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -2852,23 +2897,31 @@
                 lat = c.lat; lon = c.lng;
             }
 
+            // 检查缓存
+            const cacheKey = `${mapFilter}_${lat.toFixed(4)}_${lon.toFixed(4)}_${searchRadius}`;
+            if (placesCache[cacheKey]) {
+                renderPlaces(placesCache[cacheKey]);
+                return;
+            }
+
             const filters = {
+                all: 'nwr[amenity=pharmacy]; nwr[amenity=hospital]; nwr[amenity=clinic]; nwr[amenity=dentist]; nwr[healthcare~"doctor|clinic"]',
                 pharmacy: 'nwr[amenity=pharmacy]',
                 hospital: 'nwr[amenity=hospital]',
-                ent: 'nwr[healthcare:speciality=otorhinolaryngology] | nwr[healthcare=department][name~"耳鼻喉|耳鼻喉科"]',
-                obgyn: 'nwr[healthcare:speciality=gynaecology] | nwr[healthcare=department][name~"婦產|婦產科"]',
-                internal: 'nwr[healthcare:speciality=internal] | nwr[healthcare=doctor][name~"內科"]',
-                pediatric: 'nwr[healthcare:speciality=paediatrics] | nwr[healthcare=doctor][name~"小兒|兒科"]',
-                dental: 'nwr[amenity=dentist] | nwr[healthcare=doctor][name~"牙科|牙醫"]',
-                eye: 'nwr[healthcare:speciality=ophthalmology] | nwr[healthcare=optometrist] | nwr[healthcare=doctor][name~"眼科"]',
-                ortho: 'nwr[healthcare:speciality=orthopaedics] | nwr[healthcare=doctor][name~"骨科"]',
-                derm: 'nwr[healthcare:speciality=dermatology] | nwr[healthcare=doctor][name~"皮膚科"]',
-                emergency: 'nwr[emergency=yes] | nwr[amenity=hospital][emergency=yes]'
+                ent: 'nwr[healthcare:speciality=otorhinolaryngology]; nwr[healthcare=department][name~"耳鼻喉|耳鼻喉科"]',
+                obgyn: 'nwr[healthcare:speciality=gynaecology]; nwr[healthcare=department][name~"婦產|婦產科"]',
+                internal: 'nwr[healthcare:speciality=internal]; nwr[healthcare=doctor][name~"內科"]',
+                pediatric: 'nwr[healthcare:speciality=paediatrics]; nwr[healthcare=doctor][name~"小兒|兒科"]',
+                dental: 'nwr[amenity=dentist]; nwr[healthcare=doctor][name~"牙科|牙醫"]',
+                eye: 'nwr[healthcare:speciality=ophthalmology]; nwr[healthcare=optometrist]; nwr[healthcare=doctor][name~"眼科"]',
+                ortho: 'nwr[healthcare:speciality=orthopaedics]; nwr[healthcare=doctor][name~"骨科"]',
+                derm: 'nwr[healthcare:speciality=dermatology]; nwr[healthcare=doctor][name~"皮膚科"]',
+                emergency: 'nwr[emergency=yes]; nwr[amenity=hospital][emergency=yes]'
             };
 
             // 使用跨域友善的 overpass 域名（行動網路較穩定）
             const overpassHost = 'https://overpass.kumi.systems/api/interpreter';
-            const query = `[out:json][timeout:25];(${filters[mapFilter]}(around:2000,${lat},${lon}););out center 20;`;
+            const query = `[out:json][timeout:25];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 50;`;
             const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
             fetch(overpass)
@@ -2876,50 +2929,104 @@
                 .then(data => {
                     const elements = data.elements || [];
                     if (elements.length === 0) {
-                        list.innerHTML = '<div class="empty-state"><h3>附近沒有找到資料</h3></div>';
+                        list.innerHTML = '<div class="empty-state"><h3>附近沒有找到資料</h3><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
                         return;
                     }
 
                     const items = elements.map(e => {
                         const p = e.tags || {};
                         const latlng = e.type === 'node' ? [e.lat, e.lon] : [e.center?.lat, e.center?.lon];
-                        if (latlng[0] && latlng[1]) {
-                            const marker = L.marker(latlng).addTo(mapInstance);
-                            const popupAddr = p['addr:full'] || `${p['addr:city'] || ''}${p['addr:district'] || ''}${p['addr:street'] || ''}${p['addr:housenumber'] || ''}`;
-                            marker.bindPopup(`<b>${escapeHtml(p.name || '未命名')}</b><br>${escapeHtml(popupAddr || '')}`);
-                            mapMarkers.push(marker);
-                        }
+                        
                         return {
+                            id: e.id,
                             name: p.name || '未命名',
                             address: p['addr:full'] || `${p['addr:city'] || ''}${p['addr:district'] || ''}${p['addr:street'] || ''}${p['addr:housenumber'] || ''}`,
                             phone: p.phone || p['contact:phone'] || '',
                             website: p.website || p['contact:website'] || '',
                             opening_hours: p.opening_hours || '',
                             lat: latlng[0],
-                            lon: latlng[1]
+                            lon: latlng[1],
+                            type: mapFilter
                         };
-                    });
+                    }).filter(it => it.lat && it.lon);
 
-                    list.innerHTML = items.map(it => {
-                        const dist = userPosition && it.lat && it.lon ? ` · ${formatDistance(distanceInMeters(userPosition.lat, userPosition.lon, it.lat, it.lon))}` : '';
-                        const navUrl = it.lat && it.lon ? `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}` : '#';
-                        const tel = it.phone ? `tel:${it.phone.replace(/\s|-/g,'')}` : '';
-                        return `
-                        <div class="history-item">
-                            <div class="history-medicine">${escapeHtml(it.name)}${dist}</div>
-                            <div class="history-time" style="color:#333;">${escapeHtml(it.address || '地址未提供')}</div>
-                            ${it.opening_hours ? `<div class="history-time">營業時間：${escapeHtml(it.opening_hours)}</div>` : ''}
-                            <div style="display:flex; gap:8px; margin-top:8px;">
-                                <a href="${navUrl}" target="_blank" class="sync-btn" style="padding:8px 12px; width:auto;">導航</a>
-                                ${it.phone ? `<a href="${tel}" class="sync-btn" style="background:#6c757d; padding:8px 12px; width:auto;">打電話</a>` : ''}
-                                ${it.website ? `<a href="${it.website}" target="_blank" class="sync-btn" style="background:#17a2b8; padding:8px 12px; width:auto;">官網</a>` : ''}
-                            </div>
-                        </div>`;
-                    }).join('');
+                    allPlaces = items;
+                    placesCache[cacheKey] = items;
+                    renderPlaces(items);
                 })
                 .catch(() => {
-                    list.innerHTML = '<div class="empty-state"><h3>載入失敗，請稍後再試</h3></div>';
+                    list.innerHTML = '<div class="empty-state"><h3>載入失敗，請稍後再試</h3><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
                 });
+        }
+
+        function renderPlaces(items) {
+            clearMapMarkers();
+            const list = document.getElementById('placeList');
+            
+            if (items.length === 0) {
+                list.innerHTML = '<div class="empty-state"><h3>沒有找到資料</h3></div>';
+                return;
+            }
+
+            // 计算距离
+            items.forEach(it => {
+                if (userPosition && it.lat && it.lon) {
+                    it.distance = distanceInMeters(userPosition.lat, userPosition.lon, it.lat, it.lon);
+                }
+            });
+
+            // 排序
+            const sortBy = document.getElementById('sortBy')?.value || 'distance';
+            if (sortBy === 'distance') {
+                items.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+            } else if (sortBy === 'name') {
+                items.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
+            }
+
+            // 在地图上添加标记
+            items.forEach(it => {
+                if (it.lat && it.lon) {
+                    const isFavorite = favoritePlaces.some(f => f.id === it.id);
+                    const icon = L.divIcon({
+                        html: `<div style="background: ${isFavorite ? '#ff4757' : '#4D9980'}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: [24, 24],
+                        className: ''
+                    });
+                    const marker = L.marker([it.lat, it.lon], { icon }).addTo(mapInstance);
+                    const popupAddr = it.address || '';
+                    marker.bindPopup(`<b>${escapeHtml(it.name)}</b><br>${escapeHtml(popupAddr)}`);
+                    mapMarkers.push(marker);
+                }
+            });
+
+            // 显示结果统计
+            const statsHtml = `<div style="padding: 8px 20px; background: #f8f9fa; font-size: 13px; color: #666;">找到 ${items.length} 個醫療機構</div>`;
+
+            list.innerHTML = statsHtml + items.map(it => {
+                const isFavorite = favoritePlaces.some(f => f.id === it.id);
+                const dist = it.distance ? ` · ${formatDistance(it.distance)}` : '';
+                const navUrl = it.lat && it.lon ? `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}` : '#';
+                const tel = it.phone ? `tel:${it.phone.replace(/\s|-/g,'')}` : '';
+                const openStatus = getOpenStatus(it.opening_hours);
+                
+                return `
+                <div class="history-item" style="position: relative;">
+                    <button onclick="toggleFavorite('${it.id}', event)" style="position: absolute; top: 12px; right: 12px; background: none; border: none; cursor: pointer; padding: 4px;">
+                        <svg style="width: 20px; height: 20px; color: ${isFavorite ? '#ff4757' : '#ccc'};" fill="${isFavorite ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                        </svg>
+                    </button>
+                    <div class="history-medicine">${escapeHtml(it.name)}${dist}</div>
+                    ${openStatus ? `<div style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-bottom: 4px; ${openStatus.isOpen ? 'background: #d4edda; color: #155724;' : 'background: #f8d7da; color: #721c24;'}">${openStatus.text}</div>` : ''}
+                    <div class="history-time" style="color:#333;">${escapeHtml(it.address || '地址未提供')}</div>
+                    ${it.opening_hours ? `<div class="history-time">營業時間：${escapeHtml(it.opening_hours)}</div>` : ''}
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <a href="${navUrl}" target="_blank" class="sync-btn" style="padding:8px 12px; width:auto;">導航</a>
+                        ${it.phone ? `<a href="${tel}" class="sync-btn" style="background:#6c757d; padding:8px 12px; width:auto;">打電話</a>` : ''}
+                        ${it.website ? `<a href="${it.website}" target="_blank" class="sync-btn" style="background:#17a2b8; padding:8px 12px; width:auto;">官網</a>` : ''}
+                    </div>
+                </div>`;
+            }).join('');
         }
 
         function distanceInMeters(lat1, lon1, lat2, lon2) {
@@ -2935,6 +3042,125 @@
         function formatDistance(m) {
             if (m < 1000) return `${Math.round(m)}m`;
             return `${(m/1000).toFixed(1)}km`;
+        }
+
+        // 搜索功能
+        function searchPlaces() {
+            const searchTerm = document.getElementById('mapSearchInput').value.trim().toLowerCase();
+            if (!searchTerm) {
+                renderPlaces(allPlaces);
+                return;
+            }
+            const filtered = allPlaces.filter(p => 
+                p.name.toLowerCase().includes(searchTerm) || 
+                p.address.toLowerCase().includes(searchTerm)
+            );
+            renderPlaces(filtered);
+        }
+
+        // 按Enter键搜索
+        document.addEventListener('DOMContentLoaded', () => {
+            const searchInput = document.getElementById('mapSearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') searchPlaces();
+                });
+            }
+        });
+
+        // 收藏功能
+        function toggleFavorite(placeId, event) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const place = allPlaces.find(p => p.id == placeId);
+            if (!place) return;
+
+            const index = favoritePlaces.findIndex(f => f.id == placeId);
+            if (index > -1) {
+                favoritePlaces.splice(index, 1);
+            } else {
+                favoritePlaces.push(place);
+            }
+            
+            localStorage.setItem('favoritePlaces', JSON.stringify(favoritePlaces));
+            renderPlaces(showingFavorites ? favoritePlaces : allPlaces);
+        }
+
+        // 显示/隐藏收藏
+        function toggleFavorites() {
+            showingFavorites = !showingFavorites;
+            const icon = document.getElementById('favIcon');
+            
+            if (showingFavorites) {
+                icon.setAttribute('fill', 'currentColor');
+                icon.style.color = '#ff4757';
+                renderPlaces(favoritePlaces);
+            } else {
+                icon.setAttribute('fill', 'none');
+                icon.style.color = '#666';
+                renderPlaces(allPlaces);
+            }
+        }
+
+        // 更新搜索范围
+        function updateSearchRadius() {
+            searchRadius = parseInt(document.getElementById('searchRadius').value);
+            const center = mapInstance.getCenter();
+            fetchPlaces(center.lat, center.lng);
+        }
+
+        // 排序
+        function sortPlaces() {
+            renderPlaces(showingFavorites ? favoritePlaces : allPlaces);
+        }
+
+        // 判断营业状态
+        function getOpenStatus(opening_hours) {
+            if (!opening_hours) return null;
+            
+            try {
+                const now = new Date();
+                const day = now.getDay(); // 0=Sunday, 1=Monday, etc.
+                const time = now.getHours() * 100 + now.getMinutes();
+                
+                // 简单解析 opening_hours (如 "Mo-Fr 08:00-18:00")
+                // 这是一个简化版本，实际的 opening_hours 格式可能很复杂
+                
+                // 24/7 全天候营业
+                if (opening_hours.includes('24/7')) {
+                    return { isOpen: true, text: '營業中' };
+                }
+                
+                // 尝试匹配常见格式
+                const patterns = [
+                    /(\d{1,2}):(\d{2})-(\d{1,2}):(\d{2})/g,  // 08:00-18:00
+                ];
+                
+                let hasMatch = false;
+                for (const pattern of patterns) {
+                    const matches = [...opening_hours.matchAll(pattern)];
+                    if (matches.length > 0) {
+                        hasMatch = true;
+                        for (const match of matches) {
+                            const openTime = parseInt(match[1]) * 100 + parseInt(match[2]);
+                            const closeTime = parseInt(match[3]) * 100 + parseInt(match[4]);
+                            
+                            if (time >= openTime && time <= closeTime) {
+                                return { isOpen: true, text: '營業中' };
+                            }
+                        }
+                    }
+                }
+                
+                if (hasMatch) {
+                    return { isOpen: false, text: '已關閉' };
+                }
+                
+                return null;
+            } catch (e) {
+                return null;
+            }
         }
 
         function escapeHtml(str) {
