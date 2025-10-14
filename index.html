@@ -1471,6 +1471,8 @@
         let myLocationMarker = null; // 用户位置标记
         let loadingStartTime = 0; // 加载开始时间
         let progressInterval = null; // 进度更新定时器
+        let currentMessage = '正在連接服務器...'; // 当前加载消息
+        let currentProgress = 0; // 当前进度
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -3095,6 +3097,10 @@
 
         // 更新加载进度
         function updateLoadingProgress(message, progress) {
+            // 更新当前状态（给定时器使用）
+            currentMessage = message;
+            currentProgress = progress;
+            
             const list = document.getElementById('placeList');
             if (list && isRequesting) {
                 showLoadingProgress(list, message, progress);
@@ -3121,7 +3127,22 @@
             
             // 显示带进度的加载界面
             loadingStartTime = Date.now();
-            showLoadingProgress(list, '正在連接服務器...', 0);
+            currentMessage = '正在連接服務器...';
+            currentProgress = 0;
+            showLoadingProgress(list, currentMessage, currentProgress);
+            
+            // 启动定时器，每秒更新一次时间显示
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+            progressInterval = setInterval(() => {
+                if (isRequesting) {
+                    showLoadingProgress(list, currentMessage, currentProgress);
+                } else {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+            }, 1000); // 每秒更新一次
 
             // 若無定位，用地圖中心
             if (!lat || !lon) {
