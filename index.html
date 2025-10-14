@@ -1147,6 +1147,17 @@
         </div>
         
         <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
+
+        <!-- 底部搜尋等待計時條 -->
+        <div id="searchTimer" style="display:none; position: fixed; left: 0; right: 0; bottom: calc(56px + env(safe-area-inset-bottom)); z-index: 1400; padding: 8px 16px;">
+            <div style="margin: 0 16px; background: rgba(0,0,0,0.75); color: #fff; border-radius: 12px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; box-shadow: 0 6px 16px rgba(0,0,0,0.25);">
+                <span style="font-size: 13px; opacity: 0.9;">正在搜尋附近…</span>
+                <div style="flex:1; height: 6px; background: rgba(255,255,255,0.25); border-radius: 999px; overflow: hidden;">
+                    <div data-id="progress" style="height: 100%; width: 0%; background: #4D9980;"></div>
+                </div>
+                <span data-id="seconds" style="font-variant-numeric: tabular-nums; width: 36px; text-align: right;">0s</span>
+            </div>
+        </div>
     </div>
 
     <!-- 個人資料頁面 -->
@@ -1483,6 +1494,43 @@
         const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
         let globalSearchTimeoutId = null; // 整體搜尋超時計時器
         const GLOBAL_SEARCH_TIMEOUT_MS = 2 * 60 * 1000; // 兩分鐘
+        let searchTimerIntervalId = null; // 搜尋等待秒數計時器
+        let searchElapsedSeconds = 0; // 已等待秒數
+
+        // 顯示/更新底部等待計時條
+        function showSearchTimer() {
+            const el = document.getElementById('searchTimer');
+            if (!el) return;
+            searchElapsedSeconds = 0;
+            el.style.display = 'flex';
+            updateSearchTimerUI();
+            if (searchTimerIntervalId) clearInterval(searchTimerIntervalId);
+            searchTimerIntervalId = setInterval(() => {
+                searchElapsedSeconds += 1;
+                updateSearchTimerUI();
+            }, 1000);
+        }
+
+        function hideSearchTimer() {
+            const el = document.getElementById('searchTimer');
+            if (!el) return;
+            el.style.display = 'none';
+            if (searchTimerIntervalId) {
+                clearInterval(searchTimerIntervalId);
+                searchTimerIntervalId = null;
+            }
+        }
+
+        function updateSearchTimerUI() {
+            const el = document.getElementById('searchTimer');
+            if (!el) return;
+            const secondsText = el.querySelector('[data-id="seconds"]');
+            const bar = el.querySelector('[data-id="progress"]');
+            const max = Math.round(GLOBAL_SEARCH_TIMEOUT_MS / 1000);
+            const pct = Math.min(100, Math.round((searchElapsedSeconds / max) * 100));
+            if (secondsText) secondsText.textContent = `${searchElapsedSeconds}s`;
+            if (bar) bar.style.width = pct + '%';
+        }
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         let myLocationMarker = null; // 用户位置标记
         
@@ -3047,6 +3095,8 @@
                 clearTimeout(globalSearchTimeoutId);
                 globalSearchTimeoutId = null;
             }
+            // 隱藏計時條
+            hideSearchTimer();
             
             // 取消正在进行的请求
             if (currentFetchController) {
@@ -3138,6 +3188,9 @@
                 }
             }, GLOBAL_SEARCH_TIMEOUT_MS);
 
+            // 顯示底部等待計時條
+            showSearchTimer();
+
             // 带重试的获取函数
             const fetchWithRetry = async (serverIndex = 0, retryCount = 0) => {
                 // 检查这个请求是否还是最新的
@@ -3158,6 +3211,7 @@
                     
                     isRequesting = false;
                     if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
+                    hideSearchTimer();
                     
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
@@ -3301,6 +3355,7 @@
                     currentServerIndex = serverIndex % overpassServers.length;
                     isRequesting = false;
                     if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
+                    hideSearchTimer();
                     
                     renderPlaces(items);
                     
@@ -3315,6 +3370,7 @@
                     if (error.name === 'AbortError') {
                         // 如果是使用者/全域超時取消，結束流程
                         if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
+                        hideSearchTimer();
                         return; // 被取消的请求不重试
                     }
                     
