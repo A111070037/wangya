@@ -3261,7 +3261,9 @@
                 const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
                 // 添加超时处理 - 动态超时时间
+                let clientTimeoutFired = false;
                 const timeoutId = setTimeout(() => {
+                    clientTimeoutFired = true; // 標記為單次伺服器超時
                     currentFetchController.abort();
                 }, clientTimeout);
 
@@ -3380,20 +3382,31 @@
                     }
                     
                     if (error.name === 'AbortError') {
-                        // 如果是使用者/全域超時取消，結束流程
-                        if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
-                        hideSearchTimer();
-                        return; // 被取消的请求不重试
+                        if (clientTimeoutFired) {
+                            // 單一伺服器逾時 -> 不隱藏計時條、不清除全域倒數，轉往下一台伺服器
+                            const nextServer = (serverIndex + 1) % overpassServers.length;
+                            list.innerHTML = `<div class="loading">
+                                <div class="spinner"></div>
+                                <span>服務器 ${serverIndex + 1} 逾時，嘗試服務器 ${nextServer + 1}...</span>
+                            </div>`;
+                            setTimeout(() => {
+                                fetchWithRetry(serverIndex + 1, retryCount + 1);
+                            }, 500);
+                            return;
+                        } else {
+                            // 使用者或全域超時取消 -> 結束並隱藏計時
+                            if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
+                            hideSearchTimer();
+                            return;
+                        }
                     }
                     
-                    // 显示重试提示
+                    // 其他錯誤 -> 顯示重試提示並繼續重試，不隱藏計時條
                     const nextServer = (serverIndex + 1) % overpassServers.length;
                     list.innerHTML = `<div class="loading">
                         <div class="spinner"></div>
                         <span>服務器 ${serverIndex + 1} 失敗，嘗試服務器 ${nextServer + 1}...</span>
                     </div>`;
-                    
-                    // 切换到下一个服务器重试
                     setTimeout(() => {
                         fetchWithRetry(serverIndex + 1, retryCount + 1);
                     }, 500);
