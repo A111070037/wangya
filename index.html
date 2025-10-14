@@ -1227,8 +1227,8 @@
 
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- jsPDF -->
-    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <!-- html2pdf (包含 html2canvas + jsPDF) 用於正確顯示繁體中文 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 
     <script>
         // 數據結構
@@ -2204,108 +2204,102 @@
                 return;
             }
 
-            try {
-                const { jsPDF } = window.jspdf;
-                const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-                const pageWidth = doc.internal.pageSize.getWidth();
-                const pageHeight = doc.internal.pageSize.getHeight();
-                const margin = 15; // mm
+            // 建立臨時 DOM（使用原生字型渲染，確保繁體中文顯示正確）
+            const container = document.createElement('div');
+            container.style.padding = '24px';
+            container.style.width = '794px'; // A4 寬度 @96DPI 約 794px
+            container.style.boxSizing = 'border-box';
+            container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft JhengHei', sans-serif";
 
-                // 標題
-                doc.setFontSize(20);
-                doc.text('健康記錄報告', pageWidth / 2, 20, { align: 'center' });
-                
-                // 生成時間
-                doc.setFontSize(12);
-                const now = new Date();
-                const dateString = now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW');
-                doc.text('生成時間：' + dateString, pageWidth / 2, 35, { align: 'center' });
-                
-                let yPosition = 50; // mm
-                
-                // 按類型分組處理
-                for (const type of selectedTypes) {
-                    const typeRecords = filteredRecords.filter(r => r.type === type);
-                    if (typeRecords.length === 0) continue;
+            const title = document.createElement('h2');
+            title.textContent = '健康記錄報告';
+            title.style.textAlign = 'center';
+            title.style.color = '#2f6f5d';
+            container.appendChild(title);
 
-                    // 預計此區塊需要的最小高度，若不足則換頁
-                    if (yPosition > pageHeight - 40) {
-                        doc.addPage();
-                        yPosition = margin;
-                    }
-                    
-                    // 類型標題
-                    doc.setFontSize(16);
-                    doc.setTextColor(77, 153, 128);
-                    doc.text(healthTypes[type].icon + ' ' + healthTypes[type].name + '記錄', margin, yPosition);
-                    yPosition += 8;
-                    doc.setTextColor(0, 0, 0);
+            const gen = document.createElement('div');
+            gen.style.textAlign = 'center';
+            gen.style.marginBottom = '12px';
+            gen.textContent = '生成時間：' + new Date().toLocaleString('zh-TW');
+            container.appendChild(gen);
 
-                    // 繪製趨勢圖（非用藥且數據點 ≥ 2）
-                    if (type !== 'medication' && typeRecords.length >= 2) {
-                        const chartPxWidth = 1000;
-                        const chartPxHeight = 360;
-                        const dpr = Math.max(2, window.devicePixelRatio || 1);
-                        const { dataUrl } = getChartImageData(type, typeRecords, chartPxWidth, chartPxHeight, dpr);
+            selectedTypes.forEach(type => {
+                const typeRecords = filteredRecords.filter(r => r.type === type);
+                if (typeRecords.length === 0) return;
 
-                        const imgWidthMm = pageWidth - margin * 2; // 塞滿頁面寬度（留邊距）
-                        const imgHeightMm = imgWidthMm * (chartPxHeight / chartPxWidth);
+                const section = document.createElement('div');
+                section.style.margin = '16px 0 24px';
 
-                        if (yPosition + imgHeightMm > pageHeight - margin) {
-                            doc.addPage();
-                            yPosition = margin;
-                        }
-                        doc.addImage(dataUrl, 'PNG', margin, yPosition, imgWidthMm, imgHeightMm);
-                        yPosition += imgHeightMm + 6;
-                    }
-                    
-                    // 記錄列表（每個類型最多顯示 20 條，避免 PDF 過長）
-                    doc.setFontSize(10);
-                    const recordsForPdf = typeRecords
-                        .slice()
-                        .sort((a, b) => new Date(b.date) - new Date(a.date))
-                        .slice(0, 20);
+                const header = document.createElement('h3');
+                header.textContent = `${healthTypes[type].name}記錄`;
+                header.style.color = '#4D9980';
+                header.style.margin = '0 0 8px 0';
+                section.appendChild(header);
 
-                    for (const record of recordsForPdf) {
-                        if (yPosition > pageHeight - margin) {
-                            doc.addPage();
-                            yPosition = margin;
-                        }
-
-                        const date = new Date(record.date);
-                        const dateStr = date.toLocaleDateString('zh-TW') + ' ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-                        
-                        let valueStr = '';
-                        if (record.type === 'bloodPressure') {
-                            valueStr = `${record.value}/${record.value2} ${healthTypes[record.type].unit}`;
-                        } else if (record.type === 'medication') {
-                            valueStr = `${record.medicationName || '未知藥物'}${record.dosage ? ' (' + record.dosage + ')' : ''}`;
-                        } else {
-                            valueStr = `${record.value} ${healthTypes[record.type].unit}`;
-                        }
-
-                        doc.text(dateStr, margin, yPosition);
-                        doc.text(valueStr, margin + 60, yPosition);
-                        
-                        if (record.note) {
-                            doc.text('備註：' + record.note, margin, yPosition + 5);
-                            yPosition += 5;
-                        }
-                        yPosition += 8;
-                    }
-
-                    yPosition += 6;
+                // 圖表
+                if (type !== 'medication' && typeRecords.length >= 2) {
+                    const chartPxWidth = 1000;
+                    const chartPxHeight = 360;
+                    const dpr = Math.min(2, Math.max(1.5, window.devicePixelRatio || 1));
+                    const { dataUrl } = getChartImageData(type, typeRecords, chartPxWidth, chartPxHeight, dpr);
+                    const img = document.createElement('img');
+                    img.src = dataUrl;
+                    img.style.width = '100%';
+                    img.style.height = 'auto';
+                    img.style.margin = '6px 0 10px';
+                    section.appendChild(img);
                 }
-                
-                // 保存PDF
-                doc.save('健康記錄報告_' + new Date().toISOString().slice(0, 10) + '.pdf');
-                showToast('PDF匯出成功！', 'success');
+
+                // 清單
+                const list = document.createElement('div');
+                const recordsForPdf = typeRecords
+                    .slice()
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .slice(0, 30);
+                list.style.display = 'grid';
+                list.style.gridTemplateColumns = '1fr 1fr';
+                list.style.columnGap = '24px';
+                list.style.rowGap = '6px';
+
+                recordsForPdf.forEach(record => {
+                    const row = document.createElement('div');
+                    const dateStr = new Date(record.date).toLocaleString('zh-TW');
+                    let valueStr = '';
+                    if (record.type === 'bloodPressure') {
+                        valueStr = `${record.value}/${record.value2} ${healthTypes[record.type].unit}`;
+                    } else if (record.type === 'medication') {
+                        valueStr = `${record.medicationName || '未知藥物'}${record.dosage ? ' (' + record.dosage + ')' : ''}`;
+                    } else {
+                        valueStr = `${record.value} ${healthTypes[record.type].unit}`;
+                    }
+                    row.textContent = `${dateStr}    ${valueStr}`;
+                    list.appendChild(row);
+                });
+
+                section.appendChild(list);
+                container.appendChild(section);
+            });
+
+            // 掛到 body 後用 html2pdf 匯出，再移除
+            document.body.appendChild(container);
+
+            const opt = {
+                margin:       [10, 10, 10, 10], // mm
+                filename:     '健康記錄報告_' + new Date().toISOString().slice(0,10) + '.pdf',
+                image:        { type: 'jpeg', quality: 0.92 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().from(container).set(opt).save().then(() => {
+                container.remove();
                 closeModal('exportOptionsModal');
-                
-            } catch (error) {
-                console.error('PDF匯出失敗:', error);
+                showToast('PDF匯出成功！', 'success');
+            }).catch(err => {
+                console.error('PDF匯出失敗:', err);
+                container.remove();
                 showToast('PDF匯出失敗，請重試', 'error');
-            }
+            });
         }
 
         // 圖片匯出功能已移除（僅保留 PDF 匯出）
