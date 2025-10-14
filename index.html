@@ -1454,6 +1454,8 @@
         let currentFetchController = null; // 用于取消请求
         let markerClusterGroup = null; // 标记聚合组
         let currentServerIndex = 0; // 当前使用的服务器索引
+        let requestId = 0; // 请求ID，用于跟踪最新请求
+        let isRequesting = false; // 是否正在请求中
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -2923,12 +2925,37 @@
         function setMapFilter(f) {
             mapFilter = f;
             localStorage.setItem('mapFilter', f);
+            
+            // 立即取消所有进行中的请求
+            cancelCurrentRequest();
+            
             const center = mapInstance.getCenter();
             debouncedFetchPlaces(center.lat, center.lng);
+            
             // UI active
             document.querySelectorAll('#mapView .type-btn').forEach(b => {
                 b.classList.toggle('active', b.dataset.filter === f);
             });
+        }
+        
+        // 取消当前请求
+        function cancelCurrentRequest() {
+            // 取消防抖动定时器
+            if (fetchTimeout) {
+                clearTimeout(fetchTimeout);
+                fetchTimeout = null;
+            }
+            
+            // 取消正在进行的请求
+            if (currentFetchController) {
+                currentFetchController.abort();
+                currentFetchController = null;
+            }
+            
+            // 重置请求状态
+            isRequesting = false;
+            
+            console.log('🛑 已取消之前的請求');
         }
 
         function clearMapMarkers() {
@@ -2937,10 +2964,17 @@
         }
 
         function fetchPlaces(lat, lon) {
-            // 取消之前的请求
-            if (currentFetchController) {
-                currentFetchController.abort();
+            // 如果正在请求中，先取消
+            if (isRequesting) {
+                console.log('⚠️ 檢測到重複請求，取消舊請求');
+                cancelCurrentRequest();
             }
+            
+            // 生成新的请求ID
+            const thisRequestId = ++requestId;
+            isRequesting = true;
+            
+            console.log(`🚀 開始新請求 #${thisRequestId}, 類別: ${mapFilter}, 範圍: ${searchRadius}m`);
             
             clearMapMarkers();
             const list = document.getElementById('placeList');
@@ -2955,12 +2989,15 @@
             // 检查缓存
             const cacheKey = `${mapFilter}_${lat.toFixed(4)}_${lon.toFixed(4)}_${searchRadius}`;
             if (placesCache[cacheKey]) {
+                console.log(`✅ 使用緩存數據 #${thisRequestId}`);
+                isRequesting = false;
                 renderPlaces(placesCache[cacheKey]);
                 return;
             }
 
             // 检查网络连接
             if (!navigator.onLine) {
+                isRequesting = false;
                 list.innerHTML = '<div class="empty-state"><h3>❌ 沒有網路連接</h3><p>請檢查您的網路設定</p></div>';
                 return;
             }
@@ -2983,12 +3020,26 @@
 
             // 带重试的获取函数
             const fetchWithRetry = async (serverIndex = 0, retryCount = 0) => {
+                // 检查这个请求是否还是最新的
+                if (thisRequestId !== requestId) {
+                    console.log(`⏭️ 請求 #${thisRequestId} 已過期，忽略（當前: #${requestId}）`);
+                    return;
+                }
+                
                 // 创建新的 AbortController
                 currentFetchController = new AbortController();
                 const signal = currentFetchController.signal;
 
                 const maxRetries = overpassServers.length;
                 if (retryCount >= maxRetries) {
+                    // 检查这个请求是否还是最新的
+                    if (thisRequestId !== requestId) {
+                        console.log(`⏭️ 請求 #${thisRequestId} 已過期，忽略失敗處理`);
+                        return;
+                    }
+                    
+                    isRequesting = false;
+                    
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
                     if (hintEl) {
@@ -3037,14 +3088,28 @@
                     const response = await fetch(overpass, { signal });
                     clearTimeout(timeoutId);
                     
+                    // 检查这个请求是否还是最新的
+                    if (thisRequestId !== requestId) {
+                        console.log(`⏭️ 請求 #${thisRequestId} 響應已過期，忽略`);
+                        return;
+                    }
+                    
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}`);
                     }
                     
                     const data = await response.json();
+                    
+                    // 再次检查（因为JSON解析需要时间）
+                    if (thisRequestId !== requestId) {
+                        console.log(`⏭️ 請求 #${thisRequestId} 已過期，忽略響應數據`);
+                        return;
+                    }
+                    
                     const elements = data.elements || [];
                     
                     if (elements.length === 0) {
+                        isRequesting = false;
                         list.innerHTML = '<div class="empty-state"><h3>📍 附近沒有找到資料</h3><p>試試調整搜尋範圍或類別</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重新搜尋</button></div>';
                         return;
                     }
@@ -3077,15 +3142,25 @@
                     
                     // 记住成功的服务器
                     currentServerIndex = serverIndex % overpassServers.length;
+                    isRequesting = false;
+                    
+                    console.log(`✅ 請求 #${thisRequestId} 成功完成，找到 ${items.length} 個結果`);
                     renderPlaces(items);
                     
                 } catch (error) {
                     clearTimeout(timeoutId);
                     
+                    // 检查这个请求是否还是最新的
+                    if (thisRequestId !== requestId) {
+                        console.log(`⏭️ 請求 #${thisRequestId} 已過期，忽略錯誤處理`);
+                        return;
+                    }
+                    
                     if (error.name === 'AbortError') {
-                        console.log('請求被取消或超時');
+                        console.log(`🛑 請求 #${thisRequestId} 被取消或超時`);
+                        return; // 被取消的请求不重试
                     } else {
-                        console.error(`服務器 ${serverIndex + 1} 失敗:`, error.message);
+                        console.error(`❌ 請求 #${thisRequestId} 服務器 ${serverIndex + 1} 失敗:`, error.message);
                     }
                     
                     // 显示重试提示
@@ -3306,6 +3381,10 @@
         // 更新搜索范围
         function updateSearchRadius() {
             searchRadius = parseInt(document.getElementById('searchRadius').value);
+            
+            // 立即取消当前请求
+            cancelCurrentRequest();
+            
             const center = mapInstance.getCenter();
             
             // 隐藏提示
@@ -3319,13 +3398,19 @@
 
         // 快速修复：自动优化设定
         function quickFix() {
+            // 立即取消当前请求
+            cancelCurrentRequest();
+            
             // 设置为最快的配置
             searchRadius = 500;
             document.getElementById('searchRadius').value = '500';
             
             // 如果是"全部"，切换到"藥局"（最快）
             if (mapFilter === 'all') {
-                setMapFilter('pharmacy');
+                mapFilter = 'pharmacy';
+                document.querySelectorAll('#mapView .type-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.filter === 'pharmacy');
+                });
             }
             
             // 隐藏提示
