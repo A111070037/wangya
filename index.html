@@ -326,6 +326,8 @@
             display: flex;
             align-items: flex-end;
             justify-content: center;
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
         }
 
         .modal-content {
@@ -334,13 +336,16 @@
             max-width: 600px;
             border-radius: 20px 20px 0 0;
             padding: 24px;
-            /* 讓內容在各種裝置可完整滾動且不被劉海/工具列擋住（使用動態視窗高度 100dvh） */
-            max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+            /* 不得高於螢幕高度（多重單位做相容性回退） */
+            max-height: 88vh; /* 一般瀏覽器回退 */
+            max-height: calc(100svh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px); /* 小視窗單位 */
+            max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px); /* 動態視窗單位 */
             padding-top: calc(24px + env(safe-area-inset-top));
             padding-bottom: calc(24px + env(safe-area-inset-bottom));
             display: flex;
             flex-direction: column;
             overflow-y: auto;
+            overscroll-behavior: contain; /* 防止滾到頂/底時帶動背景頁 */
             -webkit-overflow-scrolling: touch; /* 行動裝置滾動更順，避免卡在頂部 */
             animation: slideUp 0.3s;
         }
