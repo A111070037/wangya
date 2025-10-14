@@ -1498,6 +1498,24 @@
         let lastSearchPosition = null; // 上次搜索的位置
         let autoSearchEnabled = false; // 是否启用自动搜索
         
+        // 小游戏相关变量
+        let gameActive = false;
+        let gameStarted = false;
+        let catY = 150;
+        let catVelocity = 0;
+        let pills = [];
+        let gameScore = 0;
+        let gameInterval = null;
+        let gameCanvas = null;
+        let gameCtx = null;
+        let lastFrameTime = 0;
+        const GRAVITY = 0.6;
+        const JUMP_STRENGTH = -12;
+        const CAT_SIZE = 40;
+        const PILL_WIDTH = 30;
+        const PILL_HEIGHT = 40;
+        const FRAME_RATE = 1000 / 60; // 60 FPS
+        
         // 多个 Overpass API 服务器备用
         const overpassServers = [
             'https://overpass.kumi.systems/api/interpreter',
@@ -3105,15 +3123,22 @@
                 progressInterval = null;
             }
             
+            // 停止游戏
+            if (gameActive) {
+                stopMiniGame(false);
+            }
+            
             // 重置请求状态
             isRequesting = false;
             
             // 显示取消提示
             const list = document.getElementById('placeList');
             if (list) {
+                const finalScore = gameScore > 0 ? `<p style="color: #4D9980; font-size: 16px; font-weight: 500;">🎮 遊戲分數：${gameScore}</p>` : '';
                 list.innerHTML = `
                     <div class="empty-state">
                         <h3>🚫 已取消搜尋</h3>
+                        ${finalScore}
                         <p style="color: #999; margin: 12px 0;">您可以調整設定後重新搜尋</p>
                         <button onclick="fetchPlaces()" class="sync-btn" style="margin-top: 12px;">🔄 重新搜尋</button>
                     </div>
@@ -3125,9 +3150,15 @@
         function showLoadingProgress(container, message, progress) {
             const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
             
+            // 10秒后启动游戏
+            if (elapsed >= 10 && !gameActive) {
+                startMiniGame(container, message, elapsed);
+                return;
+            }
+            
             // 智能提示和操作：根据实际等待时间
             let actionButtons = '';
-            if (elapsed > 10) {
+            if (elapsed > 10 && gameActive) {
                 actionButtons = `
                     <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                         <button onclick="cancelCurrentRequest(); quickFix();" 
@@ -3190,6 +3221,322 @@
                     </div>
                 </div>
             `;
+        }
+
+        // 启动迷你游戏
+        function startMiniGame(container, message, elapsed) {
+            if (gameActive) return;
+            gameActive = true;
+            gameStarted = false;
+            gameScore = 0;
+            catY = 150;
+            catVelocity = 0;
+            pills = [];
+            
+            container.innerHTML = `
+                <div style="padding: 20px; text-align: center;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 12px;">
+                        ${message} · 已等待 <strong>${elapsed}</strong> 秒
+                    </div>
+                    <div style="background: #f0f4f8; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+                        <div style="font-size: 13px; color: #4D9980; font-weight: 500; margin-bottom: 8px;">
+                            🎮 等待太久了？來玩個小遊戲吧！
+                        </div>
+                        <div style="font-size: 12px; color: #999;">
+                            📱 手機：點擊畫面 | 💻 電腦：點擊或按空格<br>
+                            讓貓咪跳起來避開藥丸
+                        </div>
+                    </div>
+                    <canvas id="gameCanvas" width="300" height="200" 
+                            style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 100%; touch-action: none;"></canvas>
+                    <div style="margin-top: 12px; font-size: 18px; font-weight: 600; color: #4D9980;">
+                        分數：<span id="gameScore">0</span>
+                    </div>
+                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center;">
+                        <button onclick="cancelCurrentRequest(); quickFix();" 
+                                style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
+                                       color: #4a5568; 
+                                       border: 1px solid #cbd5e0; 
+                                       padding: 8px 16px; 
+                                       border-radius: 8px; 
+                                       font-size: 13px; 
+                                       cursor: pointer;">
+                            ⚡ 優化設定重試
+                        </button>
+                        <button onclick="cancelCurrentRequest();" 
+                                style="background: linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%); 
+                                       color: #5a6270; 
+                                       border: 1px solid #cbd5e0; 
+                                       padding: 8px 16px; 
+                                       border-radius: 8px; 
+                                       font-size: 13px; 
+                                       cursor: pointer;">
+                            ⏸️ 取消
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // 初始化游戏
+            setTimeout(() => {
+                try {
+                    gameCanvas = document.getElementById('gameCanvas');
+                    if (!gameCanvas) {
+                        console.error('无法找到游戏画布');
+                        return;
+                    }
+                    
+                    gameCtx = gameCanvas.getContext('2d');
+                    if (!gameCtx) {
+                        console.error('无法获取Canvas上下文');
+                        return;
+                    }
+                    
+                    // 添加点击和触摸事件（移动端兼容）
+                    gameCanvas.addEventListener('click', catJump);
+                    gameCanvas.addEventListener('touchstart', handleTouch, { passive: false });
+                    document.addEventListener('keydown', handleGameKeyPress);
+                    
+                    runGame();
+                } catch (error) {
+                    console.error('初始化游戏失败:', error);
+                    gameActive = false;
+                }
+            }, 100);
+        }
+
+        // 猫咪跳跃
+        function catJump(e) {
+            if (e && e.preventDefault) {
+                e.preventDefault();
+            }
+            if (!gameActive) return;
+            
+            if (!gameStarted) {
+                gameStarted = true;
+            }
+            catVelocity = JUMP_STRENGTH;
+        }
+
+        // 触摸控制（手机端）
+        function handleTouch(e) {
+            if (e.cancelable) {
+                e.preventDefault();
+            }
+            e.stopPropagation();
+            catJump(e);
+        }
+
+        // 键盘控制
+        function handleGameKeyPress(e) {
+            if (gameActive && e.code === 'Space') {
+                e.preventDefault();
+                catJump(e);
+            }
+        }
+
+        // 游戏主循环
+        function runGame(currentTime = 0) {
+            if (!gameActive || !gameCanvas || !gameCtx) return;
+            
+            // 帧率控制（避免过度占用资源）
+            const elapsed = currentTime - lastFrameTime;
+            if (elapsed < FRAME_RATE) {
+                if (gameActive) {
+                    requestAnimationFrame(runGame);
+                }
+                return;
+            }
+            lastFrameTime = currentTime;
+            
+            try {
+                const canvas = gameCanvas;
+                const ctx = gameCtx;
+                
+                // 清空画布
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制地面
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(0, 190, canvas.width, 10);
+            
+            if (gameStarted) {
+                // 更新猫咪位置
+                catVelocity += GRAVITY;
+                catY += catVelocity;
+                
+                // 限制猫咪不要掉出地面
+                if (catY > 150) {
+                    catY = 150;
+                    catVelocity = 0;
+                }
+                if (catY < 0) {
+                    catY = 0;
+                    catVelocity = 0;
+                }
+                
+                // 生成药丸障碍物
+                if (pills.length === 0 || pills[pills.length - 1].x < canvas.width - 150) {
+                    pills.push({
+                        x: canvas.width,
+                        y: 150,
+                        passed: false
+                    });
+                }
+                
+                // 更新并绘制药丸
+                pills = pills.filter(pill => {
+                    pill.x -= 3; // 移动速度
+                    
+                    // 检测碰撞（更精确的碰撞检测）
+                    const catLeft = 40 - CAT_SIZE/2;
+                    const catRight = 40 + CAT_SIZE/2;
+                    const catTop = catY;
+                    const catBottom = catY + CAT_SIZE;
+                    
+                    const pillLeft = pill.x;
+                    const pillRight = pill.x + PILL_WIDTH;
+                    const pillTop = pill.y;
+                    const pillBottom = pill.y + PILL_HEIGHT;
+                    
+                    if (catRight > pillLeft && catLeft < pillRight && 
+                        catBottom > pillTop && catTop < pillBottom) {
+                        // 碰到了！游戏结束
+                        stopMiniGame(true);
+                        return false;
+                    }
+                    
+                    // 计分
+                    if (!pill.passed && pill.x < 20) {
+                        pill.passed = true;
+                        gameScore++;
+                        try {
+                            const scoreEl = document.getElementById('gameScore');
+                            if (scoreEl) {
+                                scoreEl.textContent = gameScore;
+                            }
+                        } catch (e) {
+                            // 元素可能已被移除，忽略错误
+                        }
+                    }
+                    
+                    // 绘制药丸 💊（使用兼容性更好的方法）
+                    if (pill.x > -PILL_WIDTH) {
+                        // 绘制胶囊形状
+                        ctx.fillStyle = '#ff6b9d';
+                        
+                        // 上半圆
+                        ctx.beginPath();
+                        ctx.arc(pill.x + 15, pill.y + 15, 14, 0, Math.PI, true);
+                        ctx.fill();
+                        
+                        // 矩形主体
+                        ctx.fillRect(pill.x + 1, pill.y + 15, 28, 10);
+                        
+                        // 下半圆
+                        ctx.beginPath();
+                        ctx.arc(pill.x + 15, pill.y + 25, 14, 0, Math.PI, false);
+                        ctx.fill();
+                        
+                        // 药丸中间的线
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(pill.x + 5, pill.y + 20);
+                        ctx.lineTo(pill.x + 25, pill.y + 20);
+                        ctx.stroke();
+                        
+                        return true;
+                    }
+                    return false;
+                });
+            }
+            
+            // 绘制猫咪 🐱
+            ctx.save();
+            ctx.translate(40, catY + CAT_SIZE/2);
+            
+            // 猫咪身体
+            ctx.fillStyle = '#ffa500';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, CAT_SIZE/2, CAT_SIZE/2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 猫咪耳朵
+            ctx.fillStyle = '#ffa500';
+            ctx.beginPath();
+            ctx.moveTo(-15, -15);
+            ctx.lineTo(-10, -25);
+            ctx.lineTo(-5, -15);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(5, -15);
+            ctx.lineTo(10, -25);
+            ctx.lineTo(15, -15);
+            ctx.fill();
+            
+            // 猫咪眼睛
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(-8, -3, 3, 0, Math.PI * 2);
+            ctx.arc(8, -3, 3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 猫咪鼻子
+            ctx.fillStyle = '#ff69b4';
+            ctx.beginPath();
+            ctx.arc(0, 3, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+            
+            // 提示文字
+            if (!gameStarted) {
+                ctx.fillStyle = '#999';
+                ctx.font = '14px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('點擊畫面開始', canvas.width / 2, 30);
+            }
+            
+            // 继续游戏循环
+            if (gameActive) {
+                requestAnimationFrame(runGame);
+            }
+            
+            } catch (error) {
+                console.error('游戏运行错误:', error);
+                stopMiniGame(false);
+            }
+        }
+
+        // 停止游戏
+        function stopMiniGame(crashed = false) {
+            gameActive = false;
+            gameStarted = false;
+            
+            // 移除所有事件监听器
+            document.removeEventListener('keydown', handleGameKeyPress);
+            if (gameCanvas) {
+                gameCanvas.removeEventListener('click', catJump);
+                gameCanvas.removeEventListener('touchstart', handleTouch);
+            }
+            
+            // 显示游戏结束画面
+            if (crashed && gameCanvas && gameCtx) {
+                try {
+                    const ctx = gameCtx;
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 20px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 10);
+                    ctx.font = '14px sans-serif';
+                    ctx.fillText(`最終分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 + 20);
+                } catch (error) {
+                    console.error('停止游戏错误:', error);
+                }
+            }
         }
 
         // 更新加载进度
@@ -3264,6 +3611,11 @@
                     progressInterval = null;
                 }
                 
+                // 停止游戏（如果在玩）
+                if (gameActive) {
+                    stopMiniGame(false);
+                }
+                
                 renderPlaces(placesCache[cacheKey]);
                 return;
             }
@@ -3323,15 +3675,23 @@
                         progressInterval = null;
                     }
                     
+                    // 停止游戏
+                    if (gameActive) {
+                        stopMiniGame(false);
+                    }
+                    
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
                     if (hintEl) {
                         hintEl.style.display = 'block';
                     }
                     
+                    const finalScore = gameScore > 0 ? `<p style="color: #4D9980; font-size: 16px; font-weight: 500; margin: 8px 0;">🎮 遊戲分數：${gameScore}</p>` : '';
+                    
                     list.innerHTML = `<div class="empty-state">
                         <h3>⏱️ 所有服務器響應超時</h3>
                         <p style="margin: 12px 0;">已嘗試 ${maxRetries} 個服務器都無法連接</p>
+                        ${finalScore}
                         
                         <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin: 12px 0; text-align: left;">
                             <strong style="color: #856404;">💡 建議解決方法：</strong>
@@ -3413,6 +3773,11 @@
                         if (progressInterval) {
                             clearInterval(progressInterval);
                             progressInterval = null;
+                        }
+                        
+                        // 停止游戏
+                        if (gameActive) {
+                            stopMiniGame(false);
                         }
                         
                         // 根据当前设置给出智能建议
@@ -3505,6 +3870,11 @@
                     
                     // 最后进度：完成
                     updateLoadingProgress('完成！', 100);
+                    
+                    // 停止游戏（如果在玩）
+                    if (gameActive) {
+                        stopMiniGame(false);
+                    }
                     
                     // 短暂延迟后显示结果（让用户看到100%）
                     setTimeout(() => {
