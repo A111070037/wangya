@@ -828,7 +828,7 @@
             <h2 class="modal-title">健康紀錄</h2>
             <div class="action-buttons">
                 <button class="icon-btn" onclick="showExportOptions()" title="匯出記錄">
-                    📊
+                    📤
                 </button>
             </div>
         </div>
@@ -1220,7 +1220,8 @@
             loadData();
             loadProfile();
             renderMedicines();
-            renderHealthRecords();
+            // 初始化健康記錄頁面
+            changeHealthType(currentHealthType);
         }
 
         // 載入數據
@@ -1228,18 +1229,22 @@
             const savedMedicines = localStorage.getItem('medicines');
             const savedHistory = localStorage.getItem('history');
             const savedHealthRecords = localStorage.getItem('healthRecords');
-            
+
             if (savedMedicines) {
                 medicines = JSON.parse(savedMedicines);
             }
-            
+
             if (savedHistory) {
                 history = JSON.parse(savedHistory);
             }
-            
+
             if (savedHealthRecords) {
                 healthRecords = JSON.parse(savedHealthRecords);
             }
+
+            // 調試：清除所有健康記錄數據（僅用於測試）
+            healthRecords = [];
+            saveData();
         }
 
         // 保存數據
@@ -1763,6 +1768,7 @@
                 document.getElementById('healthView').classList.add('active');
                 document.querySelector('.nav-item:nth-child(2)').classList.add('active');
                 renderHealthRecords();
+                updateChart();
             } else if (view === 'profile') {
                 document.getElementById('profileView').classList.add('active');
                 document.querySelector('.nav-item:nth-child(3)').classList.add('active');
