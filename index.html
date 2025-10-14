@@ -1448,6 +1448,15 @@
         let fetchTimeout = null; // 防抖动定时器
         let currentFetchController = null; // 用于取消请求
         let markerClusterGroup = null; // 标记聚合组
+        let currentServerIndex = 0; // 当前使用的服务器索引
+        
+        // 多个 Overpass API 服务器备用
+        const overpassServers = [
+            'https://overpass.kumi.systems/api/interpreter',
+            'https://overpass-api.de/api/interpreter',
+            'https://overpass.openstreetmap.ru/api/interpreter',
+            'https://overpass.openstreetmap.fr/api/interpreter'
+        ];
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -2966,29 +2975,45 @@
                 emergency: 'nwr[emergency=yes]; nwr[amenity=hospital][emergency=yes]'
             };
 
-            // 创建新的 AbortController
-            currentFetchController = new AbortController();
-            const signal = currentFetchController.signal;
+            // 带重试的获取函数
+            const fetchWithRetry = async (serverIndex = 0, retryCount = 0) => {
+                // 创建新的 AbortController
+                currentFetchController = new AbortController();
+                const signal = currentFetchController.signal;
 
-            // 使用跨域友善的 overpass 域名（行動網路較穩定）
-            const overpassHost = 'https://overpass.kumi.systems/api/interpreter';
-            const query = `[out:json][timeout:15];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 30;`; // 减少超时和结果数量
-            const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
+                const maxRetries = overpassServers.length;
+                if (retryCount >= maxRetries) {
+                    list.innerHTML = `<div class="empty-state">
+                        <h3>❌ 所有服務器都無法連接</h3>
+                        <p>請稍後再試或檢查網路連接</p>
+                        <button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button>
+                        <p style="font-size:12px; color:#999; margin-top:8px;">已嘗試 ${maxRetries} 個服務器</p>
+                    </div>`;
+                    return;
+                }
 
-            // 添加超时处理
-            const timeoutId = setTimeout(() => {
-                currentFetchController.abort();
-                list.innerHTML = '<div class="empty-state"><h3>⏱️ 請求超時</h3><p>服務器響應過慢</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
-            }, 15000); // 15秒超时
+                const overpassHost = overpassServers[serverIndex % overpassServers.length];
+                const query = `[out:json][timeout:12];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 30;`;
+                const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
-            fetch(overpass, { signal })
-                .then(r => {
+                console.log(`嘗試服務器 ${serverIndex + 1}/${overpassServers.length}: ${overpassHost}`);
+
+                // 添加超时处理 - 缩短到12秒
+                const timeoutId = setTimeout(() => {
+                    currentFetchController.abort();
+                }, 12000);
+
+                try {
+                    const response = await fetch(overpass, { signal });
                     clearTimeout(timeoutId);
-                    if (!r.ok) throw new Error('Network response was not ok');
-                    return r.json();
-                })
-                .then(data => {
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
                     const elements = data.elements || [];
+                    
                     if (elements.length === 0) {
                         list.innerHTML = '<div class="empty-state"><h3>📍 附近沒有找到資料</h3><p>試試調整搜尋範圍或類別</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重新搜尋</button></div>';
                         return;
@@ -3014,22 +3039,41 @@
                     allPlaces = items;
                     placesCache[cacheKey] = items;
                     
-                    // 限制缓存大小，避免内存占用过多
+                    // 限制缓存大小
                     const cacheKeys = Object.keys(placesCache);
                     if (cacheKeys.length > 20) {
-                        delete placesCache[cacheKeys[0]]; // 删除最旧的缓存
+                        delete placesCache[cacheKeys[0]];
                     }
                     
+                    // 记住成功的服务器
+                    currentServerIndex = serverIndex % overpassServers.length;
                     renderPlaces(items);
-                })
-                .catch((error) => {
+                    
+                } catch (error) {
                     clearTimeout(timeoutId);
+                    
                     if (error.name === 'AbortError') {
-                        console.log('Fetch aborted');
-                        return;
+                        console.log('請求被取消或超時');
+                    } else {
+                        console.error(`服務器 ${serverIndex + 1} 失敗:`, error.message);
                     }
-                    list.innerHTML = '<div class="empty-state"><h3>❌ 載入失敗</h3><p>請檢查網路連接或稍後再試</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button></div>';
-                });
+                    
+                    // 显示重试提示
+                    const nextServer = (serverIndex + 1) % overpassServers.length;
+                    list.innerHTML = `<div class="loading">
+                        <div class="spinner"></div>
+                        <span>服務器 ${serverIndex + 1} 失敗，嘗試服務器 ${nextServer + 1}...</span>
+                    </div>`;
+                    
+                    // 切换到下一个服务器重试
+                    setTimeout(() => {
+                        fetchWithRetry(serverIndex + 1, retryCount + 1);
+                    }, 500);
+                }
+            };
+
+            // 从上次成功的服务器开始尝试
+            fetchWithRetry(currentServerIndex, 0);
         }
 
         function renderPlaces(items) {
