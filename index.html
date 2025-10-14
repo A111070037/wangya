@@ -1156,6 +1156,7 @@
                     <div data-id="progress" style="height: 100%; width: 0%; background: #4D9980;"></div>
                 </div>
                 <span data-id="seconds" style="font-variant-numeric: tabular-nums; width: 36px; text-align: right;">0s</span>
+                <button onclick="cancelSearch()" style="padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25); background: rgba(0,0,0,0.3); color: #fff; cursor: pointer;">取消</button>
             </div>
         </div>
     </div>
@@ -1530,6 +1531,16 @@
             const pct = Math.min(100, Math.round((searchElapsedSeconds / max) * 100));
             if (secondsText) secondsText.textContent = `${searchElapsedSeconds}s`;
             if (bar) bar.style.width = pct + '%';
+        }
+
+        function cancelSearch() {
+            // 手動取消：停止所有計時與當前請求
+            cancelCurrentRequest();
+            const listEl = document.getElementById('placeList');
+            if (listEl) {
+                listEl.innerHTML = '<div class="empty-state"><h3>🛑 已取消搜尋</h3><p style="margin-top:8px;">您可調整條件或按下「在此搜尋」重新發起。</p></div>';
+            }
+            showToast('已取消搜尋', 'info');
         }
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         let myLocationMarker = null; // 用户位置标记
