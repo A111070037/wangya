@@ -1530,12 +1530,16 @@
         let gameCanvas = null;
         let gameCtx = null;
         let lastFrameTime = 0;
+        let gameSpeed = 3; // 游戏速度，会逐渐增加
+        let isOnGround = true; // 是否在地面上
         const GRAVITY = 0.5;
         const JUMP_STRENGTH = -7.5; // 降低跳跃高度
         const CAT_SIZE = 35;
         const PILL_WIDTH = 25;
         const PILL_HEIGHT = 35;
         const FRAME_RATE = 1000 / 60; // 60 FPS
+        const GROUND_Y = 130; // 地面位置
+        const MAX_SPEED = 8; // 最大速度
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -3247,9 +3251,11 @@
                 gameActive = true;
                 gameStarted = false;
                 gameScore = 0;
-                catY = 130; // 调整初始位置适应新画布大小
+                catY = GROUND_Y; // 调整初始位置适应新画布大小
                 catVelocity = 0;
                 pills = [];
+                gameSpeed = 3; // 重置速度
+                isOnGround = true;
             
             // 在下方列表区域只显示简单的等待提示
             container.innerHTML = `
@@ -3346,7 +3352,12 @@
             if (!gameStarted) {
                 gameStarted = true;
             }
-            catVelocity = JUMP_STRENGTH;
+            
+            // 只有在地面上才能跳跃（防止连续跳跃累积高度）
+            if (isOnGround) {
+                catVelocity = JUMP_STRENGTH;
+                isOnGround = false;
+            }
         }
 
         // 触摸控制（手机端）
@@ -3398,14 +3409,21 @@
                 catY += catVelocity;
                 
                 // 限制猫咪不要掉出地面（调整适应新画布）
-                if (catY > 130) {
-                    catY = 130;
+                if (catY >= GROUND_Y) {
+                    catY = GROUND_Y;
                     catVelocity = 0;
+                    isOnGround = true; // 着地了
+                } else {
+                    isOnGround = false; // 在空中
                 }
+                
                 if (catY < 0) {
                     catY = 0;
                     catVelocity = 0;
                 }
+                
+                // 根据分数逐渐加速（每5分加速一次，最高8倍速）
+                gameSpeed = Math.min(MAX_SPEED, 3 + Math.floor(gameScore / 5) * 0.5);
                 
                 // 生成药丸障碍物
                 if (pills.length === 0 || pills[pills.length - 1].x < canvas.width - 120) {
@@ -3418,7 +3436,7 @@
                 
                 // 更新并绘制药丸
                 pills = pills.filter(pill => {
-                    pill.x -= 3; // 移动速度
+                    pill.x -= gameSpeed; // 使用动态速度
                     
                     // 检测碰撞（更精确的碰撞检测）
                     const catLeft = 40 - CAT_SIZE/2 + 5;
@@ -3525,12 +3543,18 @@
             
             ctx.restore();
             
-            // 提示文字
+            // 提示文字和速度显示
             if (!gameStarted) {
                 ctx.fillStyle = '#999';
                 ctx.font = '13px sans-serif';
                 ctx.textAlign = 'center';
                 ctx.fillText('點擊畫面開始', canvas.width / 2, 25);
+            } else {
+                // 显示当前速度（右上角）
+                ctx.fillStyle = '#999';
+                ctx.font = '11px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(`速度 ${gameSpeed.toFixed(1)}x`, canvas.width - 10, 20);
             }
             
             // 继续游戏循环
@@ -3565,12 +3589,15 @@
                     ctx.fillStyle = '#fff';
                     ctx.font = 'bold 18px sans-serif';
                     ctx.textAlign = 'center';
-                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 20);
+                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 30);
                     ctx.font = '14px sans-serif';
-                    ctx.fillText(`分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 + 5);
+                    ctx.fillText(`分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 - 5);
+                    ctx.font = '12px sans-serif';
+                    ctx.fillStyle = '#ffa500';
+                    ctx.fillText(`最高速度: ${gameSpeed.toFixed(1)}x`, gameCanvas.width / 2, gameCanvas.height / 2 + 18);
                     ctx.font = '12px sans-serif';
                     ctx.fillStyle = '#4D9980';
-                    ctx.fillText('點擊重新開始', gameCanvas.width / 2, gameCanvas.height / 2 + 30);
+                    ctx.fillText('點擊重新開始', gameCanvas.width / 2, gameCanvas.height / 2 + 40);
                     
                     // 添加重新开始的点击事件
                     const restartGame = () => {
@@ -3606,9 +3633,11 @@
             gameActive = true;
             gameStarted = false;
             gameScore = 0;
-            catY = 130;
+            catY = GROUND_Y;
             catVelocity = 0;
             pills = [];
+            gameSpeed = 3; // 重置速度
+            isOnGround = true;
             
             // 更新分数显示
             const scoreEl = document.getElementById('gameScore');
