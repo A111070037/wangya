@@ -527,6 +527,58 @@
             height: 20px;
             cursor: pointer;
         }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 10000;
+            opacity: 0;
+            transition: all 0.3s;
+            max-width: 90%;
+            text-align: center;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #4D9980;
+        }
+
+        .toast.error {
+            background: #dc3545;
+        }
+
+        /* 手機優化 */
+        @media (max-width: 768px) {
+            .btn-primary {
+                padding: 20px;
+                font-size: 20px;
+            }
+            
+            .form-input {
+                padding: 16px;
+                font-size: 18px;
+            }
+            
+            .modal-content {
+                padding: 20px;
+                max-height: 95vh;
+            }
+            
+            .time-slot-option {
+                padding: 16px;
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -934,25 +986,31 @@
             const medicine = medicines.find(m => m.id === medicineId);
             if (!medicine) return;
 
-            if (confirm(`確定已經服用了 ${medicine.name} ${medicine.dosage} 嗎？`)) {
-                // 減少庫存
-                if (medicine.stock && medicine.stock > 0) {
-                    medicine.stock--;
-                }
+            // 使用自定義確認對話框
+            showConfirmDialog(
+                '確認服藥',
+                `您確定已經服用了 ${medicine.name} ${medicine.dosage} 嗎？`,
+                () => {
+                    // 減少庫存
+                    if (medicine.stock && medicine.stock > 0) {
+                        medicine.stock--;
+                    }
 
-                history.push({
-                    id: Date.now().toString(),
-                    medicineId: medicineId,
-                    medicineName: medicine.name,
-                    dosage: medicine.dosage,
-                    slot: slot,
-                    date: new Date().toISOString()
-                });
-                
-                saveData();
-                renderMedicines();
-                renderHealthRecords();
-            }
+                    history.push({
+                        id: Date.now().toString(),
+                        medicineId: medicineId,
+                        medicineName: medicine.name,
+                        dosage: medicine.dosage,
+                        slot: slot,
+                        date: new Date().toISOString()
+                    });
+                    
+                    saveData();
+                    renderMedicines();
+                    renderHealthRecords();
+                    showToast('服藥記錄已保存', 'success');
+                }
+            );
         }
 
         // 顯示添加藥品
@@ -1028,6 +1086,12 @@
 
         // 保存藥品
         function saveMedicine() {
+            // 防止重複提交
+            if (isSubmitting) {
+                showToast('正在保存中，請稍候...', 'info');
+                return;
+            }
+
             const name = document.getElementById('medicineName').value.trim();
             const category = document.getElementById('medicineCategory').value;
             const dosage = document.getElementById('medicineDosage').value.trim();
@@ -1035,8 +1099,9 @@
             const notes = document.getElementById('medicineNotes').value.trim();
             const imagePreview = document.getElementById('imagePreview');
             
+            // 檢查必填欄位
             if (!name || !dosage) {
-                alert('請填寫藥品名稱和用量');
+                showToast('請填寫藥品名稱和用量', 'error');
                 return;
             }
 
@@ -1044,8 +1109,16 @@
                 .map(el => el.dataset.slot);
             
             if (selectedSlots.length === 0) {
-                alert('請選擇至少一個服用時段');
+                showToast('請選擇至少一個服用時段', 'error');
                 return;
+            }
+
+            // 設置提交狀態
+            isSubmitting = true;
+            const saveButton = document.querySelector('#addMedicineModal .btn-primary');
+            if (saveButton) {
+                saveButton.textContent = '保存中...';
+                saveButton.disabled = true;
             }
 
             const medicineData = {
@@ -1058,31 +1131,51 @@
                 imageData: imagePreview.style.display !== 'none' ? imagePreview.src : null
             };
 
-            if (editingMedicineId) {
-                const index = medicines.findIndex(m => m.id === editingMedicineId);
-                medicines[index] = { ...medicines[index], ...medicineData };
-            } else {
-                medicines.push({
-                    id: Date.now().toString(),
-                    ...medicineData
-                });
-            }
+            try {
+                if (editingMedicineId) {
+                    const index = medicines.findIndex(m => m.id === editingMedicineId);
+                    if (index !== -1) {
+                        medicines[index] = { ...medicines[index], ...medicineData };
+                    }
+                } else {
+                    medicines.push({
+                        id: Date.now().toString(),
+                        ...medicineData
+                    });
+                }
 
-            saveData();
-            renderMedicines();
-            closeModal('addMedicineModal');
+                saveData();
+                renderMedicines();
+                closeModal('addMedicineModal');
+                showToast('藥品保存成功！', 'success');
+            } catch (error) {
+                console.error('保存藥品時發生錯誤:', error);
+                showToast('保存失敗，請重試', 'error');
+            } finally {
+                // 重置提交狀態
+                isSubmitting = false;
+                if (saveButton) {
+                    saveButton.textContent = '保存';
+                    saveButton.disabled = false;
+                }
+            }
         }
 
         // 刪除藥品
         function deleteMedicine() {
             if (!editingMedicineId) return;
             
-            if (confirm('確定要刪除這個藥品嗎？')) {
-                medicines = medicines.filter(m => m.id !== editingMedicineId);
-                saveData();
-                renderMedicines();
-                closeModal('addMedicineModal');
-            }
+            showConfirmDialog(
+                '刪除藥品',
+                '確定要刪除這個藥品嗎？',
+                () => {
+                    medicines = medicines.filter(m => m.id !== editingMedicineId);
+                    saveData();
+                    renderMedicines();
+                    closeModal('addMedicineModal');
+                    showToast('藥品已刪除', 'success');
+                }
+            );
         }
 
         // 顯示歷史記錄
@@ -1202,6 +1295,81 @@
                 }
             });
         });
+
+        // Toast 提示功能
+        function showToast(message, type = 'info') {
+            // 移除現有的 toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            // 創建新的 toast
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            // 顯示 toast
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 100);
+
+            // 自動隱藏
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.remove();
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // 防止重複提交
+        let isSubmitting = false;
+
+        // 自定義確認對話框
+        function showConfirmDialog(title, message, onConfirm) {
+            // 移除現有的確認對話框
+            const existingDialog = document.querySelector('.confirm-dialog');
+            if (existingDialog) {
+                existingDialog.remove();
+            }
+
+            // 創建確認對話框
+            const dialog = document.createElement('div');
+            dialog.className = 'confirm-dialog modal show';
+            dialog.innerHTML = `
+                <div class="modal-content" style="max-width: 400px; text-align: center;">
+                    <h3 style="margin-bottom: 16px;">${title}</h3>
+                    <p style="margin-bottom: 24px; color: #666;">${message}</p>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn-cancel" style="flex: 1; padding: 12px; background: #f5f5f5; color: #333; border: none; border-radius: 8px; cursor: pointer;">取消</button>
+                        <button class="btn-confirm" style="flex: 1; padding: 12px; background: #4D9980; color: white; border: none; border-radius: 8px; cursor: pointer;">確認</button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(dialog);
+
+            // 綁定事件
+            dialog.querySelector('.btn-cancel').onclick = () => {
+                dialog.remove();
+            };
+
+            dialog.querySelector('.btn-confirm').onclick = () => {
+                dialog.remove();
+                if (onConfirm) onConfirm();
+            };
+
+            // 點擊背景關閉
+            dialog.onclick = (e) => {
+                if (e.target === dialog) {
+                    dialog.remove();
+                }
+            };
+        }
 
         // 初始化應用
         init();
