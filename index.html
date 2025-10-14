@@ -96,6 +96,34 @@
             background: #f5f5f5;
         }
 
+        /* 下拉選單（排序） */
+        .dropdown-menu {
+            position: absolute;
+            right: 0;
+            top: 44px;
+            background: white;
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 10px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+            padding: 6px;
+            display: none;
+            z-index: 20;
+            min-width: 160px;
+        }
+        .dropdown-menu.show { display: block; }
+        .dropdown-menu button {
+            width: 100%;
+            text-align: left;
+            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .dropdown-menu button:hover { background: #f4f6f8; }
+        .dropdown-menu hr { border: 0; height: 1px; background: #eee; margin: 6px 0; }
+
         /* 搜尋列 */
         .search-bar {
             display: flex;
@@ -893,10 +921,17 @@
                     <button class="category-btn active" onclick="changeCategory('處方藥')">處方藥</button>
                     <button class="category-btn" onclick="changeCategory('保健品')">保健品</button>
                 </div>
-                <div class="action-buttons">
-                    <button class="icon-btn" onclick="cycleMedicineSort()" title="排序">
+                <div class="action-buttons" style="position: relative;">
+                    <button class="icon-btn" onclick="toggleSortMenu(event)" title="排序">
                         ⇅
                     </button>
+                    <div id="sortMenu" class="dropdown-menu">
+                        <button onclick="setMedicineSort('created_desc')">新增時間 新→舊</button>
+                        <button onclick="setMedicineSort('created_asc')">新增時間 舊→新</button>
+                        <hr>
+                        <button onclick="setMedicineSort('stock_desc')">庫存 高→低</button>
+                        <button onclick="setMedicineSort('stock_asc')">庫存 低→高</button>
+                    </div>
                     <button class="icon-btn" onclick="showHistory()">
                         🕒
                     </button>
@@ -1471,10 +1506,6 @@
         function sortMedicines(list, mode) {
             const arr = list.slice();
             switch (mode) {
-                case 'name_asc':
-                    return arr.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
-                case 'name_desc':
-                    return arr.sort((a, b) => b.name.localeCompare(a.name, 'zh-Hant'));
                 case 'stock_asc':
                     return arr.sort((a, b) => (a.stock || 0) - (b.stock || 0));
                 case 'stock_desc':
@@ -1488,21 +1519,33 @@
             }
         }
 
-        function cycleMedicineSort() {
-            const modes = ['created_desc', 'created_asc', 'name_asc', 'name_desc', 'stock_desc', 'stock_asc'];
-            const idx = modes.indexOf(medicineSortMode);
-            medicineSortMode = modes[(idx + 1) % modes.length];
+        function toggleSortMenu(event) {
+            event.stopPropagation();
+            const menu = document.getElementById('sortMenu');
+            menu.classList.toggle('show');
+            // 點擊外部關閉
+            const close = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.classList.remove('show');
+                    document.removeEventListener('click', close);
+                }
+            };
+            document.addEventListener('click', close);
+        }
+
+        function setMedicineSort(mode) {
+            medicineSortMode = mode;
             localStorage.setItem('medicineSortMode', medicineSortMode);
             renderMedicines(document.getElementById('searchInput').value.toLowerCase());
             const labels = {
                 created_desc: '新增時間 新→舊',
                 created_asc: '新增時間 舊→新',
-                name_asc: '名稱 A→Z',
-                name_desc: '名稱 Z→A',
                 stock_desc: '庫存 高→低',
                 stock_asc: '庫存 低→高'
             };
             showToast('排序：' + labels[medicineSortMode], 'success');
+            const menu = document.getElementById('sortMenu');
+            if (menu) menu.classList.remove('show');
         }
 
         // 顯示藥品詳情
