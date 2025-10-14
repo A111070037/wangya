@@ -1469,6 +1469,8 @@
         const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         let myLocationMarker = null; // 用户位置标记
+        let loadingStartTime = 0; // 加载开始时间
+        let progressInterval = null; // 进度更新定时器
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -3028,8 +3030,43 @@
                 currentFetchController = null;
             }
             
+            // 清除进度定时器
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            
             // 重置请求状态
             isRequesting = false;
+        }
+
+        // 显示加载进度
+        function showLoadingProgress(container, message, progress) {
+            const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
+            const estimated = searchRadius <= 1000 ? '5-8秒' : searchRadius <= 2000 ? '8-12秒' : '10-15秒';
+            
+            container.innerHTML = `
+                <div class="loading" style="padding: 30px 20px;">
+                    <div class="spinner"></div>
+                    <div style="margin-top: 16px; text-align: center;">
+                        <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${message}</div>
+                        <div style="font-size: 13px; color: #999; margin-bottom: 16px;">已等待 ${elapsed} 秒 · 預計 ${estimated}</div>
+                        
+                        <!-- 进度条 -->
+                        <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden; margin: 0 auto; max-width: 200px;">
+                            <div style="background: linear-gradient(90deg, #4D9980, #6cb896); height: 100%; width: ${progress}%; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 更新加载进度
+        function updateLoadingProgress(message, progress) {
+            const list = document.getElementById('placeList');
+            if (list && isRequesting) {
+                showLoadingProgress(list, message, progress);
+            }
         }
 
         function clearMapMarkers() {
@@ -3049,7 +3086,10 @@
             
             clearMapMarkers();
             const list = document.getElementById('placeList');
-            list.innerHTML = '<div class="loading"><div class="spinner"></div><span>搜尋附近中...</span></div>';
+            
+            // 显示带进度的加载界面
+            loadingStartTime = Date.now();
+            showLoadingProgress(list, '正在連接服務器...', 0);
 
             // 若無定位，用地圖中心
             if (!lat || !lon) {
@@ -3144,6 +3184,11 @@
                 const query = `[out:json][timeout:${timeout}];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center ${maxResults};`;
                 const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
+                // 更新进度：正在查询
+                const serverNum = serverIndex + 1;
+                const totalServers = overpassServers.length;
+                updateLoadingProgress(`正在查詢服務器 ${serverNum}/${totalServers}...`, 20 + (serverIndex * 20));
+
                 // 添加超时处理 - 动态超时时间
                 const timeoutId = setTimeout(() => {
                     currentFetchController.abort();
@@ -3152,6 +3197,9 @@
                 try {
                     const response = await fetch(overpass, { signal });
                     clearTimeout(timeoutId);
+                    
+                    // 更新进度：正在接收数据
+                    updateLoadingProgress('正在接收數據...', 60);
                     
                     // 检查这个请求是否还是最新的
                     if (thisRequestId !== requestId) {
@@ -3162,12 +3210,18 @@
                         throw new Error(`HTTP ${response.status}`);
                     }
                     
+                    // 更新进度：正在解析数据
+                    updateLoadingProgress('正在解析數據...', 80);
+                    
                     const data = await response.json();
                     
                     // 再次检查（因为JSON解析需要时间）
                     if (thisRequestId !== requestId) {
                         return;
                     }
+                    
+                    // 更新进度：正在处理结果
+                    updateLoadingProgress('正在處理結果...', 90);
                     
                     const elements = data.elements || [];
                     
@@ -3250,7 +3304,19 @@
                     currentServerIndex = serverIndex % overpassServers.length;
                     isRequesting = false;
                     
-                    renderPlaces(items);
+                    // 清除进度定时器
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                    }
+                    
+                    // 最后进度：完成
+                    updateLoadingProgress('完成！', 100);
+                    
+                    // 短暂延迟后显示结果（让用户看到100%）
+                    setTimeout(() => {
+                        renderPlaces(items);
+                    }, 200);
                     
                 } catch (error) {
                     clearTimeout(timeoutId);
@@ -3266,10 +3332,7 @@
                     
                     // 显示重试提示
                     const nextServer = (serverIndex + 1) % overpassServers.length;
-                    list.innerHTML = `<div class="loading">
-                        <div class="spinner"></div>
-                        <span>服務器 ${serverIndex + 1} 失敗，嘗試服務器 ${nextServer + 1}...</span>
-                    </div>`;
+                    updateLoadingProgress(`服務器 ${serverIndex + 1} 失敗，切換到服務器 ${nextServer + 1}...`, 30 + (serverIndex * 15));
                     
                     // 切换到下一个服务器重试
                     setTimeout(() => {
