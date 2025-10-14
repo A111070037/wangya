@@ -334,13 +334,14 @@
             max-width: 600px;
             border-radius: 20px 20px 0 0;
             padding: 24px;
-            /* 讓內容在各種裝置可完整滾動且不被劉海擋住 */
-            max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
+            /* 讓內容在各種裝置可完整滾動且不被劉海/工具列擋住（使用動態視窗高度 100dvh） */
+            max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 20px);
             padding-top: calc(24px + env(safe-area-inset-top));
             padding-bottom: calc(24px + env(safe-area-inset-bottom));
             display: flex;
             flex-direction: column;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* 行動裝置滾動更順，避免卡在頂部 */
             animation: slideUp 0.3s;
         }
 
@@ -397,6 +398,7 @@
 
         .form-input {
             width: 100%;
+            min-width: 0; /* 防止在 flex 容器中溢出 */
             max-width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
@@ -414,6 +416,20 @@
         textarea {
             max-width: 100%;
             font-size: 16px; /* iOS 不自動縮放 */
+        }
+
+        /* 詳情內圖片在小螢幕不溢出 */
+        #medicineDetailContent img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* 小螢幕血壓與單值區塊允許換行，避免橫向溢出 */
+        #bloodPressureInputs > div,
+        #singleValueInput > div,
+        #editValueInputs > div {
+            flex-wrap: wrap;
         }
 
         .form-input:focus {
@@ -834,7 +850,7 @@
                 padding: 16px;
                 padding-top: calc(16px + env(safe-area-inset-top));
                 padding-bottom: calc(16px + env(safe-area-inset-bottom));
-                max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 10px);
+                max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 10px);
             }
             
             .modal-title {
