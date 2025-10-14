@@ -1043,6 +1043,21 @@
 
     </div>
 
+    <!-- 附近醫療地圖頁面 -->
+    <div id="mapView" class="view-container">
+        <div class="header">
+            <h2 class="modal-title">附近醫療</h2>
+        </div>
+        <div style="padding: 12px 20px; display: flex; gap: 8px; overflow-x: auto;">
+            <button class="type-btn" data-filter="pharmacy" onclick="setMapFilter('pharmacy')"><span class="type-name">藥局</span></button>
+            <button class="type-btn" data-filter="hospital" onclick="setMapFilter('hospital')"><span class="type-name">大醫院</span></button>
+            <button class="type-btn" data-filter="ent" onclick="setMapFilter('ent')"><span class="type-name">耳鼻喉科</span></button>
+            <button class="type-btn" data-filter="obgyn" onclick="setMapFilter('obgyn')"><span class="type-name">婦產科</span></button>
+        </div>
+        <div id="map" style="height: calc(100dvh - 220px);"></div>
+        <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
+    </div>
+
     <!-- 個人資料頁面 -->
     <div id="profileView" class="view-container">
         <div class="header">
@@ -1093,6 +1108,12 @@
                 <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
             </svg>
             <span>健康紀錄</span>
+        </button>
+        <button class="nav-item" onclick="switchView('map')">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M9 20l-5 2V6l5-2 6 2 6-2v16l-6 2-6-2zm6-14l-6-2v14l6 2V6z"/>
+            </svg>
+            <span>附近醫療</span>
         </button>
         <button class="nav-item" onclick="switchView('profile')">
             <svg fill="currentColor" viewBox="0 0 24 24">
@@ -1330,6 +1351,9 @@
         </div>
     </div>
 
+    <!-- Leaflet for map (no API key) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- html2pdf (包含 html2canvas + jsPDF) 用於正確顯示繁體中文 -->
@@ -1347,6 +1371,11 @@
         let currentMedicineDetail = null;
         let editingHealthRecordId = null;
         let healthChart = null;
+        // Map related state
+        let mapInstance = null;
+        let mapInited = false;
+        let mapFilter = 'pharmacy';
+        let mapMarkers = [];
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -1370,6 +1399,8 @@
             renderMedicines();
             // 初始化健康記錄頁面
             changeHealthType(currentHealthType);
+            // 地圖預設濾鏡
+            mapFilter = localStorage.getItem('mapFilter') || 'pharmacy';
         }
 
         // 載入數據
@@ -1993,9 +2024,13 @@
                 document.querySelector('.nav-item:nth-child(2)').classList.add('active');
                 renderHealthRecords();
                 updateChart();
+            } else if (view === 'map') {
+                document.getElementById('mapView').classList.add('active');
+                document.querySelector('.nav-item:nth-child(3)').classList.add('active');
+                initMapOnce();
             } else if (view === 'profile') {
                 document.getElementById('profileView').classList.add('active');
-                document.querySelector('.nav-item:nth-child(3)').classList.add('active');
+                document.querySelector('.nav-item:nth-child(4)').classList.add('active');
             }
         }
 
@@ -2737,6 +2772,103 @@
                     }
                 });
             }
+        }
+
+        // -------- Map (Leaflet + Overpass) ----------
+        function initMapOnce() {
+            if (mapInited) return;
+            mapInited = true;
+            const mapEl = document.getElementById('map');
+            mapInstance = L.map(mapEl).setView([25.033964, 121.564468], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap'
+            }).addTo(mapInstance);
+
+            // 定位
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    const { latitude, longitude } = pos.coords;
+                    mapInstance.setView([latitude, longitude], 15);
+                    L.circle([latitude, longitude], { radius: 30, color: '#4D9980' }).addTo(mapInstance);
+                    fetchPlaces(latitude, longitude);
+                }, () => fetchPlaces());
+            } else {
+                fetchPlaces();
+            }
+        }
+
+        function setMapFilter(f) {
+            mapFilter = f;
+            localStorage.setItem('mapFilter', f);
+            const center = mapInstance.getCenter();
+            fetchPlaces(center.lat, center.lng);
+            // UI active
+            document.querySelectorAll('#mapView .type-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.filter === f);
+            });
+        }
+
+        function clearMapMarkers() {
+            mapMarkers.forEach(m => mapInstance.removeLayer(m));
+            mapMarkers = [];
+        }
+
+        function fetchPlaces(lat, lon) {
+            clearMapMarkers();
+            const list = document.getElementById('placeList');
+            list.innerHTML = '<div class="empty-state"><h3>載入中...</h3></div>';
+
+            // 若無定位，用地圖中心
+            if (!lat || !lon) {
+                const c = mapInstance.getCenter();
+                lat = c.lat; lon = c.lng;
+            }
+
+            const filters = {
+                pharmacy: 'nwr[amenity=pharmacy]',
+                hospital: 'nwr[amenity=hospital]',
+                ent: 'nwr[healthcare:speciality=otorhinolaryngology] | nwr[healthcare=department][name~"耳鼻喉|耳鼻喉科"]',
+                obgyn: 'nwr[healthcare:speciality=gynaecology] | nwr[healthcare=department][name~"婦產|婦產科"]'
+            };
+
+            const overpass = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(\n${filters[mapFilter]}(around:2000,${lat},${lon}););out center 20;`;
+
+            fetch(overpass)
+                .then(r => r.json())
+                .then(data => {
+                    const elements = data.elements || [];
+                    if (elements.length === 0) {
+                        list.innerHTML = '<div class="empty-state"><h3>附近沒有找到資料</h3></div>';
+                        return;
+                    }
+
+                    const items = elements.map(e => {
+                        const p = e.tags || {};
+                        const latlng = e.type === 'node' ? [e.lat, e.lon] : [e.center?.lat, e.center?.lon];
+                        if (latlng[0] && latlng[1]) {
+                            const marker = L.marker(latlng).addTo(mapInstance);
+                            marker.bindPopup(`<b>${p.name || '未命名'}</b><br>${p.addr_full || ''}`);
+                            mapMarkers.push(marker);
+                        }
+                        return {
+                            name: p.name || '未命名',
+                            address: p['addr:full'] || `${p['addr:city'] || ''}${p['addr:district'] || ''}${p['addr:street'] || ''}${p['addr:housenumber'] || ''}`,
+                            phone: p.phone || p['contact:phone'] || ''
+                        };
+                    });
+
+                    list.innerHTML = items.map(it => `
+                        <div class="history-item">
+                            <div class="history-medicine">${it.name}</div>
+                            <div class="history-time" style="color:#333;">${it.address || '地址未提供'}</div>
+                            ${it.phone ? `<div class="history-time">${it.phone}</div>` : ''}
+                        </div>
+                    `).join('');
+                })
+                .catch(() => {
+                    list.innerHTML = '<div class="empty-state"><h3>載入失敗，請稍後再試</h3></div>';
+                });
         }
 
         // 初始化應用
