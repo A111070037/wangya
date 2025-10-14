@@ -234,36 +234,43 @@
             box-shadow: 0 6px 12px rgba(0,0,0,0.2);
         }
 
-        /* 右側浮動匯出按鈕 */
-        .export-fab {
-            position: fixed;
-            right: 20px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: #28a745;
-            color: white;
-            border: none;
-            font-size: 24px;
-            display: none;
+        /* 匯出按鈕區域 */
+        .export-section {
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        .export-btn {
+            display: flex;
             align-items: center;
             justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
             cursor: pointer;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            font-size: 16px;
+            font-weight: 500;
             transition: all 0.3s;
-            z-index: 100;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
         }
 
-        #healthView .export-fab {
-            display: flex;
+        .export-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+            background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
         }
 
-        .export-fab:hover {
-            transform: translateY(-50%) scale(1.1);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
-            background: #218838;
+        .export-btn:active {
+            transform: translateY(0);
+        }
+
+        .export-btn span:first-child {
+            font-size: 20px;
         }
 
         /* 底部導航 */
@@ -860,6 +867,14 @@
             <h2 class="modal-title">健康紀錄</h2>
         </div>
         
+        <!-- 匯出按鈕區域 -->
+        <div class="export-section">
+            <button class="export-btn" onclick="showExportOptions()">
+                <span>📤</span>
+                <span>匯出記錄</span>
+            </button>
+        </div>
+        
         <!-- 健康指標類型選擇器 -->
         <div class="health-type-selector">
             <div class="type-buttons">
@@ -925,10 +940,6 @@
             </button>
         </div>
 
-        <!-- 右側浮動匯出按鈕 -->
-        <button class="export-fab" onclick="showExportOptions()" title="匯出記錄">
-            📤
-        </button>
     </div>
 
     <!-- 個人資料頁面 -->
