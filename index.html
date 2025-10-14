@@ -1456,6 +1456,9 @@
         let currentServerIndex = 0; // 当前使用的服务器索引
         let requestId = 0; // 请求ID，用于跟踪最新请求
         let isRequesting = false; // 是否正在请求中
+        let displayedCount = 10; // 当前显示的数量
+        const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
+        const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -3164,13 +3167,18 @@
             fetchWithRetry(currentServerIndex, 0);
         }
 
-        function renderPlaces(items) {
+        function renderPlaces(items, resetCount = true) {
             clearMapMarkers();
             const list = document.getElementById('placeList');
             
             if (items.length === 0) {
                 list.innerHTML = '<div class="empty-state"><h3>沒有找到資料</h3></div>';
                 return;
+            }
+
+            // 重置显示数量
+            if (resetCount) {
+                displayedCount = INITIAL_DISPLAY_COUNT;
             }
 
             // 计算距离
@@ -3188,13 +3196,13 @@
                 items.sort((a, b) => a.name.localeCompare(b.name, 'zh-TW'));
             }
 
-            // 优化：限制显示的标记数量，避免地图卡顿
-            const maxMarkersToShow = 50;
-            const itemsToShowOnMap = items.slice(0, maxMarkersToShow);
+            // 只显示前displayedCount个
+            const itemsToDisplay = items.slice(0, displayedCount);
+            const hasMore = items.length > displayedCount;
 
-            // 在地图上添加标记 - 批量处理减少重绘
+            // 在地图上添加标记 - 只显示当前显示的项目
             requestAnimationFrame(() => {
-                itemsToShowOnMap.forEach(it => {
+                itemsToDisplay.forEach(it => {
                     if (it.lat && it.lon) {
                         const isFavorite = favoritePlaces.some(f => f.id === it.id);
                         const icon = L.divIcon({
@@ -3212,14 +3220,11 @@
 
             // 显示结果统计
             const statsHtml = `<div style="padding: 8px 20px; background: #f8f9fa; font-size: 13px; color: #666;">
-                找到 ${items.length} 個醫療機構 ${items.length > maxMarkersToShow ? `（地圖顯示前 ${maxMarkersToShow} 個）` : ''}
+                找到 ${items.length} 個醫療機構（顯示前 ${itemsToDisplay.length} 個）
             </div>`;
 
-            // 优化：使用文档片段减少DOM重绘
-            const fragment = document.createDocumentFragment();
-            const tempDiv = document.createElement('div');
-            
-            tempDiv.innerHTML = statsHtml + items.map(it => {
+            // 渲染列表项
+            const itemsHtml = itemsToDisplay.map(it => {
                 const isFavorite = favoritePlaces.some(f => f.id === it.id);
                 const dist = it.distance ? ` · ${formatDistance(it.distance)}` : '';
                 const navUrl = it.lat && it.lon ? `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}` : '#';
@@ -3244,9 +3249,23 @@
                     </div>
                 </div>`;
             }).join('');
+
+            // 显示更多按钮
+            const loadMoreBtn = hasMore ? `
+                <div style="padding: 20px; text-align: center;">
+                    <button onclick="loadMorePlaces()" class="sync-btn" style="width: auto; padding: 12px 24px; font-size: 15px;">
+                        📋 顯示更多 (還有 ${items.length - displayedCount} 個)
+                    </button>
+                </div>
+            ` : '';
             
-            list.innerHTML = '';
-            list.appendChild(tempDiv);
+            list.innerHTML = statsHtml + itemsHtml + loadMoreBtn;
+        }
+
+        // 加载更多
+        function loadMorePlaces() {
+            displayedCount += LOAD_MORE_COUNT;
+            renderPlaces(allPlaces, false); // false表示不重置计数
         }
 
         function distanceInMeters(lat1, lon1, lat2, lon2) {
