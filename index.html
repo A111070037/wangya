@@ -1101,10 +1101,10 @@
         <!-- 工具栏：范围和排序 -->
         <div style="padding: 0 20px 12px; display: flex; gap: 8px; align-items: center;">
             <select id="searchRadius" onchange="updateSearchRadius()" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
-                <option value="1000">1公里內</option>
-                <option value="2000" selected>2公里內</option>
-                <option value="5000">5公里內</option>
-                <option value="10000">10公里內</option>
+                <option value="500">500米內</option>
+                <option value="1000" selected>1公里內</option>
+                <option value="2000">2公里內</option>
+                <option value="3000">3公里內</option>
             </select>
             <select id="sortBy" onchange="sortPlaces()" style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;">
                 <option value="distance">距離排序</option>
@@ -1115,6 +1115,11 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
                 </svg>
             </button>
+        </div>
+        
+        <!-- 提示信息 -->
+        <div id="mapHint" style="display: none; padding: 8px 20px; background: #e3f2fd; color: #1565c0; font-size: 12px; border-left: 3px solid #1976d2; margin: 0 20px 12px;">
+            💡 提示：如果加載很慢，試試選擇更小的搜尋範圍（500米或1公里）
         </div>
 
         <div id="map" style="height: calc(100dvh - 400px); min-height: 250px;"></div>
@@ -1440,7 +1445,7 @@
         let mapFilter = 'all';
         let mapMarkers = [];
         let userPosition = null; // {lat, lon}
-        let searchRadius = 2000; // 默认2公里
+        let searchRadius = 1000; // 默认1公里（减少查询复杂度）
         let allPlaces = []; // 存储所有搜索结果
         let favoritePlaces = JSON.parse(localStorage.getItem('favoritePlaces') || '[]');
         let showingFavorites = false;
@@ -2961,18 +2966,19 @@
             }
 
             const filters = {
-                all: 'nwr[amenity=pharmacy]; nwr[amenity=hospital]; nwr[amenity=clinic]; nwr[amenity=dentist]; nwr[healthcare~"doctor|clinic"]',
+                // 简化"全部"查询，只包含主要类别
+                all: 'nwr[amenity~"pharmacy|hospital|clinic|dentist"]',
                 pharmacy: 'nwr[amenity=pharmacy]',
                 hospital: 'nwr[amenity=hospital]',
-                ent: 'nwr[healthcare:speciality=otorhinolaryngology]; nwr[healthcare=department][name~"耳鼻喉|耳鼻喉科"]',
-                obgyn: 'nwr[healthcare:speciality=gynaecology]; nwr[healthcare=department][name~"婦產|婦產科"]',
-                internal: 'nwr[healthcare:speciality=internal]; nwr[healthcare=doctor][name~"內科"]',
-                pediatric: 'nwr[healthcare:speciality=paediatrics]; nwr[healthcare=doctor][name~"小兒|兒科"]',
-                dental: 'nwr[amenity=dentist]; nwr[healthcare=doctor][name~"牙科|牙醫"]',
-                eye: 'nwr[healthcare:speciality=ophthalmology]; nwr[healthcare=optometrist]; nwr[healthcare=doctor][name~"眼科"]',
-                ortho: 'nwr[healthcare:speciality=orthopaedics]; nwr[healthcare=doctor][name~"骨科"]',
-                derm: 'nwr[healthcare:speciality=dermatology]; nwr[healthcare=doctor][name~"皮膚科"]',
-                emergency: 'nwr[emergency=yes]; nwr[amenity=hospital][emergency=yes]'
+                ent: 'nwr[healthcare:speciality=otorhinolaryngology]',
+                obgyn: 'nwr[healthcare:speciality=gynaecology]',
+                internal: 'nwr[healthcare:speciality=internal]',
+                pediatric: 'nwr[healthcare:speciality=paediatrics]',
+                dental: 'nwr[amenity=dentist]',
+                eye: 'nwr[healthcare:speciality=ophthalmology]',
+                ortho: 'nwr[healthcare:speciality=orthopaedics]',
+                derm: 'nwr[healthcare:speciality=dermatology]',
+                emergency: 'nwr[emergency=yes]'
             };
 
             // 带重试的获取函数
@@ -2983,25 +2989,49 @@
 
                 const maxRetries = overpassServers.length;
                 if (retryCount >= maxRetries) {
+                    // 显示提示信息
+                    const hintEl = document.getElementById('mapHint');
+                    if (hintEl) {
+                        hintEl.style.display = 'block';
+                    }
+                    
                     list.innerHTML = `<div class="empty-state">
-                        <h3>❌ 所有服務器都無法連接</h3>
-                        <p>請稍後再試或檢查網路連接</p>
-                        <button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重試</button>
-                        <p style="font-size:12px; color:#999; margin-top:8px;">已嘗試 ${maxRetries} 個服務器</p>
+                        <h3>⏱️ 所有服務器響應超時</h3>
+                        <p style="margin: 12px 0;">已嘗試 ${maxRetries} 個服務器都無法連接</p>
+                        
+                        <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin: 12px 0; text-align: left;">
+                            <strong style="color: #856404;">💡 建議解決方法：</strong>
+                            <ul style="margin: 8px 0; padding-left: 20px; color: #856404;">
+                                <li>選擇更小的搜尋範圍（500米或1公里）</li>
+                                <li>選擇單一類別（藥局、醫院等）而非"全部"</li>
+                                <li>檢查網路連接是否穩定</li>
+                                <li>稍後再試（避開高峰時段）</li>
+                            </ul>
+                        </div>
+                        
+                        <button onclick="quickFix()" class="sync-btn" style="margin-top:8px; background: #ff9800;">🔧 自動優化設定</button>
+                        <button onclick="fetchPlaces()" class="sync-btn" style="margin-top:8px; margin-left:8px;">🔄 重試</button>
                     </div>`;
                     return;
                 }
 
                 const overpassHost = overpassServers[serverIndex % overpassServers.length];
-                const query = `[out:json][timeout:12];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center 30;`;
+                
+                // 动态调整查询参数：根据范围调整结果数量和超时时间
+                const maxResults = searchRadius <= 2000 ? 40 : 25;
+                const timeout = searchRadius <= 2000 ? 10 : 15;
+                const clientTimeout = (timeout + 5) * 1000; // 比服务器超时多5秒
+                
+                const query = `[out:json][timeout:${timeout}];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center ${maxResults};`;
                 const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
-                console.log(`嘗試服務器 ${serverIndex + 1}/${overpassServers.length}: ${overpassHost}`);
+                console.log(`🔍 嘗試服務器 ${serverIndex + 1}/${overpassServers.length}: ${overpassHost.split('/')[2]}`);
+                console.log(`📊 範圍: ${searchRadius}m, 超時: ${timeout}s, 結果數: ${maxResults}`);
 
-                // 添加超时处理 - 缩短到12秒
+                // 添加超时处理 - 动态超时时间
                 const timeoutId = setTimeout(() => {
                     currentFetchController.abort();
-                }, 12000);
+                }, clientTimeout);
 
                 try {
                     const response = await fetch(overpass, { signal });
@@ -3277,7 +3307,40 @@
         function updateSearchRadius() {
             searchRadius = parseInt(document.getElementById('searchRadius').value);
             const center = mapInstance.getCenter();
+            
+            // 隐藏提示
+            const hintEl = document.getElementById('mapHint');
+            if (hintEl && searchRadius <= 1000) {
+                hintEl.style.display = 'none';
+            }
+            
             debouncedFetchPlaces(center.lat, center.lng);
+        }
+
+        // 快速修复：自动优化设定
+        function quickFix() {
+            // 设置为最快的配置
+            searchRadius = 500;
+            document.getElementById('searchRadius').value = '500';
+            
+            // 如果是"全部"，切换到"藥局"（最快）
+            if (mapFilter === 'all') {
+                setMapFilter('pharmacy');
+            }
+            
+            // 隐藏提示
+            const hintEl = document.getElementById('mapHint');
+            if (hintEl) {
+                hintEl.style.display = 'none';
+            }
+            
+            // 重新搜索
+            const center = mapInstance.getCenter();
+            fetchPlaces(center.lat, center.lng);
+            
+            // 显示成功提示
+            const list = document.getElementById('placeList');
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><span>✨ 已優化設定，重新搜尋中...</span></div>';
         }
 
         // 排序
