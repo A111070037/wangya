@@ -879,6 +879,24 @@
         }
 
         /* 手機優化 */
+        /* 載入中動畫 */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            color: #4D9980;
+            gap: 10px;
+        }
+        .loading .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(77,153,128,0.3);
+            border-top-color: #4D9980;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @media (max-width: 768px) {
             .btn-primary {
                 padding: 20px;
@@ -1054,7 +1072,7 @@
             <button class="type-btn" data-filter="ent" onclick="setMapFilter('ent')"><span class="type-name">耳鼻喉科</span></button>
             <button class="type-btn" data-filter="obgyn" onclick="setMapFilter('obgyn')"><span class="type-name">婦產科</span></button>
         </div>
-        <div id="map" style="height: calc(100dvh - 220px);"></div>
+        <div id="map" style="height: calc(100dvh - 220px); min-height: 300px;"></div>
         <div id="placeList" class="health-records-list" style="padding-top: 12px;"></div>
     </div>
 
@@ -1376,6 +1394,7 @@
         let mapInited = false;
         let mapFilter = 'pharmacy';
         let mapMarkers = [];
+        let userPosition = null; // {lat, lon}
 
         // 時段圖標映射
         const timeSlotIcons = {
@@ -2791,8 +2810,16 @@
                     const { latitude, longitude } = pos.coords;
                     mapInstance.setView([latitude, longitude], 15);
                     L.circle([latitude, longitude], { radius: 30, color: '#4D9980' }).addTo(mapInstance);
+                    userPosition = { lat: latitude, lon: longitude };
                     fetchPlaces(latitude, longitude);
-                }, () => fetchPlaces());
+                }, (err) => {
+                    console.warn('定位失敗/被拒絕:', err);
+                    fetchPlaces();
+                }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+                // 兼容某些行動瀏覽器需主動 watch 以取得一次定位
+                const watcher = navigator.geolocation.watchPosition(() => {
+                    navigator.geolocation.clearWatch(watcher);
+                }, () => {}, { enableHighAccuracy: true });
             } else {
                 fetchPlaces();
             }
@@ -2817,7 +2844,7 @@
         function fetchPlaces(lat, lon) {
             clearMapMarkers();
             const list = document.getElementById('placeList');
-            list.innerHTML = '<div class="empty-state"><h3>載入中...</h3></div>';
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><span>搜尋附近中...</span></div>';
 
             // 若無定位，用地圖中心
             if (!lat || !lon) {
@@ -2829,10 +2856,20 @@
                 pharmacy: 'nwr[amenity=pharmacy]',
                 hospital: 'nwr[amenity=hospital]',
                 ent: 'nwr[healthcare:speciality=otorhinolaryngology] | nwr[healthcare=department][name~"耳鼻喉|耳鼻喉科"]',
-                obgyn: 'nwr[healthcare:speciality=gynaecology] | nwr[healthcare=department][name~"婦產|婦產科"]'
+                obgyn: 'nwr[healthcare:speciality=gynaecology] | nwr[healthcare=department][name~"婦產|婦產科"]',
+                internal: 'nwr[healthcare:speciality=internal] | nwr[healthcare=doctor][name~"內科"]',
+                pediatric: 'nwr[healthcare:speciality=paediatrics] | nwr[healthcare=doctor][name~"小兒|兒科"]',
+                dental: 'nwr[amenity=dentist] | nwr[healthcare=doctor][name~"牙科|牙醫"]',
+                eye: 'nwr[healthcare:speciality=ophthalmology] | nwr[healthcare=optometrist] | nwr[healthcare=doctor][name~"眼科"]',
+                ortho: 'nwr[healthcare:speciality=orthopaedics] | nwr[healthcare=doctor][name~"骨科"]',
+                derm: 'nwr[healthcare:speciality=dermatology] | nwr[healthcare=doctor][name~"皮膚科"]',
+                emergency: 'nwr[emergency=yes] | nwr[amenity=hospital][emergency=yes]'
             };
 
-            const overpass = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(\n${filters[mapFilter]}(around:2000,${lat},${lon}););out center 20;`;
+            // 使用跨域友善的 overpass 域名（行動網路較穩定）
+            const overpassHost = 'https://overpass.kumi.systems/api/interpreter';
+            const query = `[out:json][timeout:25];(${filters[mapFilter]}(around:2000,${lat},${lon}););out center 20;`;
+            const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
             fetch(overpass)
                 .then(r => r.json())
@@ -2848,27 +2885,60 @@
                         const latlng = e.type === 'node' ? [e.lat, e.lon] : [e.center?.lat, e.center?.lon];
                         if (latlng[0] && latlng[1]) {
                             const marker = L.marker(latlng).addTo(mapInstance);
-                            marker.bindPopup(`<b>${p.name || '未命名'}</b><br>${p.addr_full || ''}`);
+                            const popupAddr = p['addr:full'] || `${p['addr:city'] || ''}${p['addr:district'] || ''}${p['addr:street'] || ''}${p['addr:housenumber'] || ''}`;
+                            marker.bindPopup(`<b>${escapeHtml(p.name || '未命名')}</b><br>${escapeHtml(popupAddr || '')}`);
                             mapMarkers.push(marker);
                         }
                         return {
                             name: p.name || '未命名',
                             address: p['addr:full'] || `${p['addr:city'] || ''}${p['addr:district'] || ''}${p['addr:street'] || ''}${p['addr:housenumber'] || ''}`,
-                            phone: p.phone || p['contact:phone'] || ''
+                            phone: p.phone || p['contact:phone'] || '',
+                            website: p.website || p['contact:website'] || '',
+                            opening_hours: p.opening_hours || '',
+                            lat: latlng[0],
+                            lon: latlng[1]
                         };
                     });
 
-                    list.innerHTML = items.map(it => `
+                    list.innerHTML = items.map(it => {
+                        const dist = userPosition && it.lat && it.lon ? ` · ${formatDistance(distanceInMeters(userPosition.lat, userPosition.lon, it.lat, it.lon))}` : '';
+                        const navUrl = it.lat && it.lon ? `https://www.google.com/maps/search/?api=1&query=${it.lat},${it.lon}` : '#';
+                        const tel = it.phone ? `tel:${it.phone.replace(/\s|-/g,'')}` : '';
+                        return `
                         <div class="history-item">
-                            <div class="history-medicine">${it.name}</div>
-                            <div class="history-time" style="color:#333;">${it.address || '地址未提供'}</div>
-                            ${it.phone ? `<div class="history-time">${it.phone}</div>` : ''}
-                        </div>
-                    `).join('');
+                            <div class="history-medicine">${escapeHtml(it.name)}${dist}</div>
+                            <div class="history-time" style="color:#333;">${escapeHtml(it.address || '地址未提供')}</div>
+                            ${it.opening_hours ? `<div class="history-time">營業時間：${escapeHtml(it.opening_hours)}</div>` : ''}
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <a href="${navUrl}" target="_blank" class="sync-btn" style="padding:8px 12px; width:auto;">導航</a>
+                                ${it.phone ? `<a href="${tel}" class="sync-btn" style="background:#6c757d; padding:8px 12px; width:auto;">打電話</a>` : ''}
+                                ${it.website ? `<a href="${it.website}" target="_blank" class="sync-btn" style="background:#17a2b8; padding:8px 12px; width:auto;">官網</a>` : ''}
+                            </div>
+                        </div>`;
+                    }).join('');
                 })
                 .catch(() => {
                     list.innerHTML = '<div class="empty-state"><h3>載入失敗，請稍後再試</h3></div>';
                 });
+        }
+
+        function distanceInMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371000; // m
+            const toRad = (d) => d * Math.PI / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        function formatDistance(m) {
+            if (m < 1000) return `${Math.round(m)}m`;
+            return `${(m/1000).toFixed(1)}km`;
+        }
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
         }
 
         // 初始化應用
