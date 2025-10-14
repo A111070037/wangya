@@ -950,15 +950,15 @@
         <div class="profile-section">
             <div class="profile-item">
                 <span class="profile-label">姓名</span>
-                <input type="text" id="userName" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="請輸入姓名" onchange="saveProfile()">
+                <input type="text" id="userName" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="請輸入姓名" onchange="saveProfile()" oninput="saveProfile()" autocomplete="name">
             </div>
             <div class="profile-item">
                 <span class="profile-label">年齡</span>
-                <input type="number" id="userAge" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="20" onchange="saveProfile()">
+                <input type="number" id="userAge" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="20" onchange="saveProfile()" oninput="saveProfile()" inputmode="numeric">
             </div>
             <div class="profile-item">
                 <span class="profile-label">性別</span>
-                <select id="userGender" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" onchange="saveProfile()">
+                <select id="userGender" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" onchange="saveProfile()" >
                     <option value="男性">男性</option>
                     <option value="女性">女性</option>
                     <option value="其他">其他</option>
@@ -966,11 +966,15 @@
             </div>
             <div class="profile-item">
                 <span class="profile-label">身高 (cm)</span>
-                <input type="number" id="userHeight" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="170" onchange="saveProfile()">
+                <input type="number" id="userHeight" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="170" onchange="saveProfile()" oninput="saveProfile()" inputmode="numeric">
             </div>
             <div class="profile-item">
                 <span class="profile-label">體重 (kg)</span>
-                <input type="number" id="userWeight" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="60" onchange="saveProfile()">
+                <input type="number" id="userWeight" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="60" onchange="saveProfile()" oninput="saveProfile()" inputmode="numeric">
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">疾病</span>
+                <input type="text" id="userDisease" class="form-input" style="width: auto; border: none; background: transparent; text-align: right;" placeholder="例如：高血壓、糖尿病" onchange="saveProfile()" oninput="saveProfile()">
             </div>
         </div>
     </div>
@@ -1300,6 +1304,9 @@
             document.getElementById('userGender').value = profile.gender || '男性';
             document.getElementById('userHeight').value = profile.height || '';
             document.getElementById('userWeight').value = profile.weight || '';
+            if (document.getElementById('userDisease')) {
+                document.getElementById('userDisease').value = profile.disease || '';
+            }
         }
 
         // 保存個人資料
@@ -1309,7 +1316,8 @@
                 age: document.getElementById('userAge').value,
                 gender: document.getElementById('userGender').value,
                 height: document.getElementById('userHeight').value,
-                weight: document.getElementById('userWeight').value
+                weight: document.getElementById('userWeight').value,
+                disease: (document.getElementById('userDisease') && document.getElementById('userDisease').value) || ''
             };
             localStorage.setItem('profile', JSON.stringify(profile));
         }
