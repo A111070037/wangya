@@ -234,6 +234,38 @@
             box-shadow: 0 6px 12px rgba(0,0,0,0.2);
         }
 
+        /* 右側浮動匯出按鈕 */
+        .export-fab {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #28a745;
+            color: white;
+            border: none;
+            font-size: 24px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+            z-index: 100;
+        }
+
+        #healthView .export-fab {
+            display: flex;
+        }
+
+        .export-fab:hover {
+            transform: translateY(-50%) scale(1.1);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+            background: #218838;
+        }
+
         /* 底部導航 */
         .bottom-nav {
             position: fixed;
@@ -826,11 +858,6 @@
     <div id="healthView" class="view-container">
         <div class="header">
             <h2 class="modal-title">健康紀錄</h2>
-            <div class="action-buttons">
-                <button class="icon-btn" onclick="showExportOptions()" title="匯出記錄">
-                    📤
-                </button>
-            </div>
         </div>
         
         <!-- 健康指標類型選擇器 -->
@@ -897,6 +924,11 @@
                 </svg>
             </button>
         </div>
+
+        <!-- 右側浮動匯出按鈕 -->
+        <button class="export-fab" onclick="showExportOptions()" title="匯出記錄">
+            📤
+        </button>
     </div>
 
     <!-- 個人資料頁面 -->
@@ -2253,27 +2285,27 @@
                 // 創建canvas
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                canvas.width = 800;
-                canvas.height = 1000;
+                canvas.width = 1200;
+                canvas.height = 1600;
                 
                 // 填充白色背景
                 ctx.fillStyle = 'white';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
                 // 標題
-                ctx.font = 'bold 32px Arial';
+                ctx.font = 'bold 40px Arial';
                 ctx.fillStyle = '#4D9980';
                 ctx.textAlign = 'center';
-                ctx.fillText('健康記錄報告', canvas.width / 2, 50);
+                ctx.fillText('健康記錄報告', canvas.width / 2, 60);
                 
                 // 生成時間
-                ctx.font = '16px Arial';
+                ctx.font = '18px Arial';
                 ctx.fillStyle = '#666';
                 const now = new Date();
                 const dateString = now.toLocaleDateString('zh-TW') + ' ' + now.toLocaleTimeString('zh-TW');
-                ctx.fillText('生成時間：' + dateString, canvas.width / 2, 80);
+                ctx.fillText('生成時間：' + dateString, canvas.width / 2, 100);
                 
-                let yPosition = 120;
+                let yPosition = 150;
                 
                 // 按類型分組處理
                 for (const type of selectedTypes) {
@@ -2281,18 +2313,55 @@
                     if (typeRecords.length === 0) continue;
                     
                     // 類型標題
-                    ctx.font = 'bold 20px Arial';
+                    ctx.font = 'bold 28px Arial';
                     ctx.fillStyle = '#4D9980';
                     ctx.textAlign = 'left';
-                    ctx.fillText(healthTypes[type].name + '記錄', 40, yPosition);
-                    yPosition += 30;
+                    ctx.fillText(healthTypes[type].icon + ' ' + healthTypes[type].name + '記錄', 60, yPosition);
+                    yPosition += 50;
+                    
+                    // 如果有圖表且記錄數量≥2且不是用藥記錄，則繪製圖表
+                    if (type !== 'medication' && typeRecords.length >= 2 && healthChart) {
+                        try {
+                            const chartCanvas = document.getElementById('healthChart');
+                            if (chartCanvas) {
+                                // 保存當前圖表，臨時繪製此類型的圖表
+                                const originalType = currentHealthType;
+                                
+                                // 如果當前類型不是要匯出的類型，需要臨時切換
+                                if (currentHealthType !== type) {
+                                    // 暫時不顯示，只更新數據
+                                    const tempChart = createTempChart(type, typeRecords);
+                                    const tempCanvas = tempChart.canvas;
+                                    
+                                    // 繪製圖表到匯出canvas
+                                    const chartWidth = 1080;
+                                    const chartHeight = 400;
+                                    ctx.drawImage(tempCanvas, 60, yPosition, chartWidth, chartHeight);
+                                    yPosition += chartHeight + 30;
+                                    
+                                    // 銷毀臨時圖表
+                                    tempChart.destroy();
+                                } else {
+                                    // 繪製當前圖表
+                                    const chartWidth = 1080;
+                                    const chartHeight = 400;
+                                    ctx.drawImage(chartCanvas, 60, yPosition, chartWidth, chartHeight);
+                                    yPosition += chartHeight + 30;
+                                }
+                            }
+                        } catch (chartError) {
+                            console.warn('圖表繪製失敗:', chartError);
+                        }
+                    }
                     
                     // 記錄列表
-                    ctx.font = '14px Arial';
+                    ctx.font = '16px Arial';
                     ctx.fillStyle = '#333';
                     
-                    typeRecords.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(record => {
-                        if (yPosition > 950) return; // 防止超出畫布
+                    const displayRecords = typeRecords.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10); // 最多顯示10條
+                    
+                    displayRecords.forEach(record => {
+                        if (yPosition > 1550) return; // 防止超出畫布
                         
                         const date = new Date(record.date);
                         const dateStr = date.toLocaleDateString('zh-TW') + ' ' + date.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
@@ -2306,20 +2375,22 @@
                             valueStr = `${record.value} ${healthTypes[record.type].unit}`;
                         }
                         
-                        ctx.fillText(dateStr, 60, yPosition);
-                        ctx.fillText(valueStr, 300, yPosition);
+                        ctx.fillText(dateStr, 80, yPosition);
+                        ctx.fillText(valueStr, 400, yPosition);
                         
                         if (record.note) {
-                            ctx.font = '12px Arial';
+                            ctx.font = '14px Arial';
                             ctx.fillStyle = '#666';
-                            ctx.fillText('備註：' + record.note, 60, yPosition + 20);
-                            yPosition += 20;
+                            ctx.fillText('備註：' + record.note, 80, yPosition + 25);
+                            ctx.font = '16px Arial';
+                            ctx.fillStyle = '#333';
+                            yPosition += 25;
                         }
                         
-                        yPosition += 30;
+                        yPosition += 35;
                     });
                     
-                    yPosition += 20;
+                    yPosition += 30;
                 }
                 
                 // 轉換為圖片並下載
@@ -2340,6 +2411,101 @@
             } catch (error) {
                 console.error('圖片匯出失敗:', error);
                 showToast('圖片匯出失敗，請重試', 'error');
+            }
+        }
+
+        // 創建臨時圖表用於匯出
+        function createTempChart(type, records) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = 1080;
+            tempCanvas.height = 400;
+            const ctx = tempCanvas.getContext('2d');
+            
+            const sortedRecords = records.sort((a, b) => new Date(a.date) - new Date(b.date));
+            const labels = sortedRecords.map(record => {
+                const date = new Date(record.date);
+                return date.toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' });
+            });
+
+            if (type === 'bloodPressure') {
+                return new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: '收縮壓',
+                                data: sortedRecords.map(record => record.value),
+                                borderColor: '#dc3545',
+                                backgroundColor: '#dc3545',
+                                tension: 0.1,
+                                pointRadius: 4
+                            },
+                            {
+                                label: '舒張壓',
+                                data: sortedRecords.map(record => record.value2),
+                                borderColor: '#007bff',
+                                backgroundColor: '#007bff',
+                                tension: 0.1,
+                                pointRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${healthTypes[type].name}趨勢圖`,
+                                font: { size: 18, weight: 'bold' }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: healthTypes[type].unit
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                return new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: healthTypes[type].name,
+                            data: sortedRecords.map(record => record.value),
+                            borderColor: healthTypes[type].color,
+                            backgroundColor: healthTypes[type].color,
+                            tension: 0.1,
+                            pointRadius: 4,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        responsive: false,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: `${healthTypes[type].name}趨勢圖`,
+                                font: { size: 18, weight: 'bold' }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: healthTypes[type].unit
+                                }
+                            }
+                        }
+                    }
+                });
             }
         }
 
