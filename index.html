@@ -21,6 +21,9 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft JhengHei', sans-serif;
             background: linear-gradient(to bottom, #D9F2E0, #F2FAF4, #FFFFFF);
             min-height: 100dvh; /* 使用動態視窗高度避免被瀏覽器工具列壓縮 */
+            padding-top: env(safe-area-inset-top); /* 避免被劉海遮擋 */
+            padding-left: env(safe-area-inset-left); /* 避免被左側圓角遮擋 */
+            padding-right: env(safe-area-inset-right); /* 避免被右側圓角遮擋 */
             padding-bottom: calc(80px + env(safe-area-inset-bottom));
         }
 
@@ -245,6 +248,9 @@
             justify-content: center;
             gap: 32px;
             padding: 20px;
+            padding-left: calc(20px + env(safe-area-inset-left));
+            padding-right: calc(20px + env(safe-area-inset-right));
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
         }
 
         .fab {
@@ -316,7 +322,7 @@
             background: white;
             display: flex;
             justify-content: space-around;
-            padding: calc(12px + env(safe-area-inset-bottom)/2) 0 env(safe-area-inset-bottom) 0; /* 讓內容不被 Safari 工具列蓋住 */
+            padding: calc(12px + env(safe-area-inset-bottom)/2) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); /* 讓內容不被 Safari 工具列和側邊遮擋 */
             border-top: 1px solid #E5E5E5;
         }
 
@@ -361,6 +367,8 @@
             align-items: flex-end;
             justify-content: center;
             padding-top: env(safe-area-inset-top);
+            padding-left: env(safe-area-inset-left);
+            padding-right: env(safe-area-inset-right);
             padding-bottom: env(safe-area-inset-bottom);
         }
 
@@ -852,7 +860,7 @@
         /* Toast 提示 */
         .toast {
             position: fixed;
-            top: 20px;
+            top: calc(20px + env(safe-area-inset-top)); /* 避免被劉海遮擋 */
             left: 50%;
             transform: translateX(-50%);
             background: #333;
@@ -1125,49 +1133,6 @@
         <!-- 地图容器 - 添加边距和边框 -->
         <div style="padding: 0 12px; margin-bottom: 12px; position: relative;">
             <div id="map" style="height: calc(100dvh - 410px); min-height: 250px; border: 2px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
-            
-            <!-- 小游戏浮层 - 独立于列表，固定在地图上方 -->
-            <div id="miniGameOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); z-index: 2000; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
-                <!-- 关闭按钮 -->
-                <button onclick="closeGameOverlay()" style="position: absolute; top: 8px; right: 8px; background: #e0e0e0; border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#ccc'" onmouseout="this.style.background='#e0e0e0'" title="關閉遊戲">
-                    ✖️
-                </button>
-                <div style="text-align: center;">
-                    <div style="font-size: 13px; color: #4D9980; font-weight: 500; margin-bottom: 8px;">
-                        🎮 等待太久了？來玩個小遊戲吧！
-                    </div>
-                    <div style="font-size: 11px; color: #999; margin-bottom: 12px;">
-                        📱 手機：點擊遊戲區域 | 💻 電腦：點擊或按空格
-                    </div>
-                    <canvas id="gameCanvas" width="280" height="180" 
-                            style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; margin: 0 auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1); max-width: 100%;"></canvas>
-                    <div style="margin-top: 8px; font-size: 16px; font-weight: 600; color: #4D9980;">
-                        分數：<span id="gameScore">0</span>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- 搜索此区域按钮 -->
-            <div id="searchAreaBtn" style="display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;">
-                <button onclick="searchCurrentArea()" 
-                        style="background: linear-gradient(135deg, #4D9980 0%, #5daa94 100%); 
-                               color: white; 
-                               border: none; 
-                               padding: 10px 20px; 
-                               border-radius: 8px; 
-                               font-size: 14px; 
-                               font-weight: 500;
-                               cursor: pointer; 
-                               box-shadow: 0 3px 10px rgba(77, 153, 128, 0.4);
-                               transition: all 0.3s ease;
-                               display: inline-flex;
-                               align-items: center;
-                               gap: 6px;"
-                        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 15px rgba(77, 153, 128, 0.5)';"
-                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 3px 10px rgba(77, 153, 128, 0.4)';">
-                    <span style="font-size: 16px;">🔍</span> 搜尋此區域
-                </button>
-            </div>
             
             <!-- 回到我的位置按钮 - 在地图缩放控制按钮下方 -->
             <button id="myLocationBtn" onclick="goToMyLocation()" style="position: absolute; top: 92px; right: 24px; z-index: 1000; background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s;" title="回到我的位置" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
@@ -1512,35 +1477,6 @@
         const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         let myLocationMarker = null; // 用户位置标记
-        let loadingStartTime = 0; // 加载开始时间
-        let progressInterval = null; // 进度更新定时器
-        let currentMessage = '正在連接服務器...'; // 当前加载消息
-        let currentProgress = 0; // 当前进度
-        let lastSearchPosition = null; // 上次搜索的位置
-        let autoSearchEnabled = false; // 是否启用自动搜索
-        
-        // 小游戏相关变量
-        let gameActive = false;
-        let gameStarted = false;
-        let catY = 150;
-        let catVelocity = 0;
-        let pills = [];
-        let gameScore = 0;
-        let gameInterval = null;
-        let gameCanvas = null;
-        let gameCtx = null;
-        let lastFrameTime = 0;
-        let gameSpeed = 3; // 游戏速度，会逐渐增加
-        let isOnGround = true; // 是否在地面上
-        let userClosedGame = false; // 用户是否手动关闭了游戏
-        const GRAVITY = 0.5;
-        const JUMP_STRENGTH = -7.5; // 降低跳跃高度
-        const CAT_SIZE = 35;
-        const PILL_WIDTH = 25;
-        const PILL_HEIGHT = 35;
-        const FRAME_RATE = 1000 / 60; // 60 FPS
-        const GROUND_Y = 130; // 地面位置
-        const MAX_SPEED = 8; // 最大速度
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -2998,54 +2934,11 @@
                 debouncedFetchPlaces();
             }
             
-            // 地图移动结束后显示"搜索此区域"按钮
+            // 地图移动结束后才加载新数据（防止频繁请求）
             mapInstance.on('moveend', () => {
                 const center = mapInstance.getCenter();
-                
-                // 计算移动距离
-                if (lastSearchPosition) {
-                    const distance = distanceInMeters(
-                        lastSearchPosition.lat, 
-                        lastSearchPosition.lon, 
-                        center.lat, 
-                        center.lng
-                    );
-                    
-                    // 如果移动距离超过500米，显示"搜索此区域"按钮
-                    if (distance > 500) {
-                        showSearchAreaButton();
-                    } else {
-                        // 移动距离太小，隐藏按钮
-                        hideSearchAreaButton();
-                    }
-                } else {
-                    // 首次移动，隐藏按钮
-                    hideSearchAreaButton();
-                }
+                debouncedFetchPlaces(center.lat, center.lng);
             });
-        }
-
-        // 显示"搜索此区域"按钮
-        function showSearchAreaButton() {
-            const btn = document.getElementById('searchAreaBtn');
-            if (btn) {
-                btn.style.display = 'block';
-            }
-        }
-
-        // 隐藏"搜索此区域"按钮
-        function hideSearchAreaButton() {
-            const btn = document.getElementById('searchAreaBtn');
-            if (btn) {
-                btn.style.display = 'none';
-            }
-        }
-
-        // 搜索当前区域
-        function searchCurrentArea() {
-            hideSearchAreaButton();
-            const center = mapInstance.getCenter();
-            fetchPlaces(center.lat, center.lng);
         }
 
         // 回到我的位置
@@ -3129,7 +3022,7 @@
             });
         }
         
-        // 取消当前请求（但保留游戏）
+        // 取消当前请求
         function cancelCurrentRequest() {
             // 取消防抖动定时器
             if (fetchTimeout) {
@@ -3143,592 +3036,8 @@
                 currentFetchController = null;
             }
             
-            // 清除进度定时器
-            if (progressInterval) {
-                clearInterval(progressInterval);
-                progressInterval = null;
-            }
-            
             // 重置请求状态
             isRequesting = false;
-            
-            // 显示取消提示（保留游戏）
-            const list = document.getElementById('placeList');
-            if (list) {
-                list.innerHTML = `
-                    <div class="empty-state">
-                        <h3>🚫 已取消搜尋</h3>
-                        <p style="color: #999; margin: 12px 0;">
-                            ${gameActive ? '繼續玩遊戲，或調整設定後重新搜尋' : '您可以調整設定後重新搜尋'}
-                        </p>
-                        <button onclick="fetchPlaces()" class="sync-btn" style="margin-top: 12px;">🔄 重新搜尋</button>
-                    </div>
-                `;
-            }
-        }
-
-        // 显示加载进度
-        function showLoadingProgress(container, message, progress) {
-            const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
-            
-            // 10秒后启动游戏（但如果用户关闭了游戏，就不再显示）
-            if (elapsed >= 10 && !gameActive && !userClosedGame) {
-                startMiniGame(container, message, elapsed);
-                return;
-            }
-            
-            // 如果游戏正在运行，就不更新下方的进度条（游戏在独立浮层）
-            if (gameActive) {
-                return;
-            }
-            
-            // 智能提示和操作：根据实际等待时间
-            let actionButtons = '';
-            if (elapsed > 10) {
-                const gameButton = userClosedGame ? 
-                    `<button onclick="reopenGame();" 
-                            style="background: linear-gradient(135deg, #9dc88d 0%, #7db87d 100%); 
-                                   color: white; 
-                                   border: 1px solid #7db87d; 
-                                   padding: 10px 20px; 
-                                   border-radius: 8px; 
-                                   font-size: 14px; 
-                                   font-weight: 500;
-                                   cursor: pointer; 
-                                   box-shadow: 0 2px 6px rgba(125,184,125,0.3);
-                                   transition: all 0.3s ease;
-                                   display: inline-flex;
-                                   align-items: center;
-                                   gap: 6px;">
-                        <span style="font-size: 16px;">🎮</span> 打開遊戲
-                    </button>` : '';
-                
-                actionButtons = `
-                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                        ${gameButton}
-                        <button onclick="cancelCurrentRequest(); quickFix();" 
-                                style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
-                                       color: #4a5568; 
-                                       border: 1px solid #cbd5e0; 
-                                       padding: 10px 20px; 
-                                       border-radius: 8px; 
-                                       font-size: 14px; 
-                                       font-weight: 500;
-                                       cursor: pointer; 
-                                       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-                                       transition: all 0.3s ease;
-                                       display: inline-flex;
-                                       align-items: center;
-                                       gap: 6px;"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.12)'; this.style.background='linear-gradient(135deg, #a8b9cc 0%, #98aabb 100%)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.08)'; this.style.background='linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%)';">
-                            <span style="font-size: 16px;">⚡</span> 優化設定重試
-                        </button>
-                        <button onclick="cancelCurrentRequest();" 
-                                style="background: linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%); 
-                                       color: #5a6270; 
-                                       border: 1px solid #cbd5e0; 
-                                       padding: 10px 20px; 
-                                       border-radius: 8px; 
-                                       font-size: 14px; 
-                                       font-weight: 500;
-                                       cursor: pointer; 
-                                       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-                                       transition: all 0.3s ease;
-                                       display: inline-flex;
-                                       align-items: center;
-                                       gap: 6px;"
-                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.12)'; this.style.background='linear-gradient(135deg, #d5d8dc 0%, #c5c9cd 100%)';"
-                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.08)'; this.style.background='linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%)';">
-                            <span style="font-size: 16px;">⏸️</span> 取消
-                        </button>
-                    </div>
-                `;
-            }
-            
-            container.innerHTML = `
-                <div class="loading" style="padding: 30px 20px;">
-                    <div class="spinner"></div>
-                    <div style="margin-top: 16px; text-align: center;">
-                        <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${message}</div>
-                        <div style="font-size: 13px; color: #999; margin-bottom: 16px;">
-                            已等待 <strong>${elapsed}</strong> 秒
-                            ${elapsed > 20 ? '<span style="color: #ff9800;">（較慢）</span>' : ''}
-                            ${elapsed > 45 ? '<span style="color: #f44336;">（異常慢）</span>' : ''}
-                        </div>
-                        
-                        <!-- 进度条 -->
-                        <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden; margin: 0 auto; max-width: 200px;">
-                            <div style="background: linear-gradient(90deg, #4D9980, #6cb896); height: 100%; width: ${progress}%; transition: width 0.3s;"></div>
-                        </div>
-                        
-                        ${actionButtons}
-                    </div>
-                </div>
-            `;
-        }
-
-        // 启动迷你游戏
-        function startMiniGame(container, message, elapsed) {
-            if (gameActive) return;
-            
-            try {
-                gameActive = true;
-                gameStarted = false;
-                gameScore = 0;
-                catY = GROUND_Y; // 调整初始位置适应新画布大小
-                catVelocity = 0;
-                pills = [];
-                gameSpeed = 3; // 重置速度
-                isOnGround = true;
-            
-            // 在下方列表区域只显示简单的等待提示
-            container.innerHTML = `
-                <div class="loading" style="padding: 30px 20px;">
-                    <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
-                        ${message}
-                    </div>
-                    <div style="font-size: 12px; color: #999;">
-                        已等待 <strong>${elapsed}</strong> 秒
-                    </div>
-                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                        <button onclick="cancelCurrentRequest(); quickFix();" 
-                                style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
-                                       color: #4a5568; 
-                                       border: 1px solid #cbd5e0; 
-                                       padding: 8px 16px; 
-                                       border-radius: 8px; 
-                                       font-size: 13px; 
-                                       cursor: pointer;">
-                            ⚡ 優化設定重試
-                        </button>
-                        <button onclick="cancelCurrentRequest();" 
-                                style="background: linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%); 
-                                       color: #5a6270; 
-                                       border: 1px solid #cbd5e0; 
-                                       padding: 8px 16px; 
-                                       border-radius: 8px; 
-                                       font-size: 13px; 
-                                       cursor: pointer;">
-                            ⏸️ 取消
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            // 显示独立的游戏浮层
-            const gameOverlay = document.getElementById('miniGameOverlay');
-            if (gameOverlay) {
-                gameOverlay.style.display = 'block';
-            }
-            
-            // 初始化游戏
-            setTimeout(() => {
-                try {
-                    gameCanvas = document.getElementById('gameCanvas');
-                    if (!gameCanvas) {
-                        console.error('无法找到游戏画布');
-                        return;
-                    }
-                    
-                    gameCtx = gameCanvas.getContext('2d');
-                    if (!gameCtx) {
-                        console.error('无法获取Canvas上下文');
-                        return;
-                    }
-                    
-                    // 添加点击和触摸事件（移动端兼容）
-                    gameCanvas.addEventListener('click', catJump);
-                    gameCanvas.addEventListener('touchend', handleTouch);
-                    document.addEventListener('keydown', handleGameKeyPress);
-                    
-                    runGame();
-                } catch (error) {
-                    console.error('初始化游戏失败:', error);
-                    gameActive = false;
-                }
-            }, 100);
-            
-            } catch (error) {
-                console.error('启动游戏失败:', error);
-                gameActive = false;
-                // 降级显示普通加载界面
-                container.innerHTML = `
-                    <div class="loading" style="padding: 30px 20px;">
-                        <div class="spinner"></div>
-                        <div style="margin-top: 16px; text-align: center;">
-                            <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${message}</div>
-                            <div style="font-size: 13px; color: #999; margin-bottom: 16px;">已等待 ${elapsed} 秒</div>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        // 猫咪跳跃
-        function catJump(e) {
-            if (!gameActive) return;
-            
-            // 只在点击游戏画布时阻止默认行为
-            if (e && e.target === gameCanvas && e.preventDefault) {
-                e.preventDefault();
-            }
-            
-            if (!gameStarted) {
-                gameStarted = true;
-            }
-            
-            // 只有在地面上才能跳跃（防止连续跳跃累积高度）
-            if (isOnGround) {
-                catVelocity = JUMP_STRENGTH;
-                isOnGround = false;
-            }
-        }
-
-        // 触摸控制（手机端）
-        function handleTouch(e) {
-            // 只在游戏激活时处理
-            if (!gameActive) return;
-            
-            // 不阻止默认行为，允许滚动
-            // 只调用跳跃
-            catJump();
-        }
-
-        // 键盘控制
-        function handleGameKeyPress(e) {
-            if (gameActive && e.code === 'Space') {
-                e.preventDefault();
-                catJump(e);
-            }
-        }
-
-        // 游戏主循环
-        function runGame(currentTime = 0) {
-            if (!gameActive || !gameCanvas || !gameCtx) return;
-            
-            // 帧率控制（避免过度占用资源）
-            const elapsed = currentTime - lastFrameTime;
-            if (elapsed < FRAME_RATE) {
-                if (gameActive) {
-                    requestAnimationFrame(runGame);
-                }
-                return;
-            }
-            lastFrameTime = currentTime;
-            
-            try {
-                const canvas = gameCanvas;
-                const ctx = gameCtx;
-                
-                // 清空画布
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 绘制地面
-            ctx.fillStyle = '#e0e0e0';
-            ctx.fillRect(0, 170, canvas.width, 10);
-            
-            if (gameStarted) {
-                // 更新猫咪位置
-                catVelocity += GRAVITY;
-                catY += catVelocity;
-                
-                // 限制猫咪不要掉出地面（调整适应新画布）
-                if (catY >= GROUND_Y) {
-                    catY = GROUND_Y;
-                    catVelocity = 0;
-                    isOnGround = true; // 着地了
-                } else {
-                    isOnGround = false; // 在空中
-                }
-                
-                if (catY < 0) {
-                    catY = 0;
-                    catVelocity = 0;
-                }
-                
-                // 根据分数逐渐加速（每5分加速一次，最高8倍速）
-                gameSpeed = Math.min(MAX_SPEED, 3 + Math.floor(gameScore / 5) * 0.5);
-                
-                // 生成药丸障碍物
-                if (pills.length === 0 || pills[pills.length - 1].x < canvas.width - 120) {
-                    pills.push({
-                        x: canvas.width,
-                        y: 130,
-                        passed: false
-                    });
-                }
-                
-                // 更新并绘制药丸
-                pills = pills.filter(pill => {
-                    pill.x -= gameSpeed; // 使用动态速度
-                    
-                    // 检测碰撞（更精确的碰撞检测）
-                    const catLeft = 40 - CAT_SIZE/2 + 5;
-                    const catRight = 40 + CAT_SIZE/2 - 5;
-                    const catTop = catY + 5;
-                    const catBottom = catY + CAT_SIZE - 5;
-                    
-                    const pillLeft = pill.x + 5;
-                    const pillRight = pill.x + PILL_WIDTH - 5;
-                    const pillTop = pill.y + 5;
-                    const pillBottom = pill.y + PILL_HEIGHT - 5;
-                    
-                    if (catRight > pillLeft && catLeft < pillRight && 
-                        catBottom > pillTop && catTop < pillBottom) {
-                        // 碰到了！游戏结束
-                        stopMiniGame(true);
-                        return false;
-                    }
-                    
-                    // 计分
-                    if (!pill.passed && pill.x < 20) {
-                        pill.passed = true;
-                        gameScore++;
-                        try {
-                            const scoreEl = document.getElementById('gameScore');
-                            if (scoreEl) {
-                                scoreEl.textContent = gameScore;
-                            }
-                        } catch (e) {
-                            // 元素可能已被移除，忽略错误
-                        }
-                    }
-                    
-                    // 绘制药丸 💊（使用兼容性更好的方法）
-                    if (pill.x > -PILL_WIDTH) {
-                        // 绘制胶囊形状
-                        ctx.fillStyle = '#ff6b9d';
-                        
-                        const radius = PILL_WIDTH / 2;
-                        const centerY = pill.y + PILL_HEIGHT / 2;
-                        
-                        // 上半圆
-                        ctx.beginPath();
-                        ctx.arc(pill.x + radius, pill.y + radius, radius - 1, 0, Math.PI, true);
-                        ctx.fill();
-                        
-                        // 矩形主体
-                        ctx.fillRect(pill.x + 1, pill.y + radius, PILL_WIDTH - 2, PILL_HEIGHT - PILL_WIDTH);
-                        
-                        // 下半圆
-                        ctx.beginPath();
-                        ctx.arc(pill.x + radius, pill.y + PILL_HEIGHT - radius, radius - 1, 0, Math.PI, false);
-                        ctx.fill();
-                        
-                        // 药丸中间的线
-                        ctx.strokeStyle = '#fff';
-                        ctx.lineWidth = 2;
-                        ctx.beginPath();
-                        ctx.moveTo(pill.x + 4, centerY);
-                        ctx.lineTo(pill.x + PILL_WIDTH - 4, centerY);
-                        ctx.stroke();
-                        
-                        return true;
-                    }
-                    return false;
-                });
-            }
-            
-            // 绘制猫咪 🐱
-            ctx.save();
-            ctx.translate(40, catY + CAT_SIZE/2);
-            
-            // 猫咪身体
-            ctx.fillStyle = '#ffa500';
-            ctx.beginPath();
-            ctx.ellipse(0, 0, CAT_SIZE/2, CAT_SIZE/2.5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // 猫咪耳朵
-            ctx.fillStyle = '#ffa500';
-            ctx.beginPath();
-            ctx.moveTo(-15, -15);
-            ctx.lineTo(-10, -25);
-            ctx.lineTo(-5, -15);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(5, -15);
-            ctx.lineTo(10, -25);
-            ctx.lineTo(15, -15);
-            ctx.fill();
-            
-            // 猫咪眼睛
-            ctx.fillStyle = '#000';
-            ctx.beginPath();
-            ctx.arc(-8, -3, 3, 0, Math.PI * 2);
-            ctx.arc(8, -3, 3, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // 猫咪鼻子
-            ctx.fillStyle = '#ff69b4';
-            ctx.beginPath();
-            ctx.arc(0, 3, 2, 0, Math.PI * 2);
-            ctx.fill();
-            
-            ctx.restore();
-            
-            // 提示文字和速度显示
-            if (!gameStarted) {
-                ctx.fillStyle = '#999';
-                ctx.font = '13px sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('點擊畫面開始', canvas.width / 2, 25);
-            } else {
-                // 显示当前速度（右上角）
-                ctx.fillStyle = '#999';
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'right';
-                ctx.fillText(`速度 ${gameSpeed.toFixed(1)}x`, canvas.width - 10, 20);
-            }
-            
-            // 继续游戏循环
-            if (gameActive) {
-                requestAnimationFrame(runGame);
-            }
-            
-            } catch (error) {
-                console.error('游戏运行错误:', error);
-                stopMiniGame(false);
-            }
-        }
-
-        // 停止游戏（crashed = true 表示撞到了，false 表示正常结束）
-        function stopMiniGame(crashed = false) {
-            // 移除所有事件监听器
-            document.removeEventListener('keydown', handleGameKeyPress);
-            if (gameCanvas) {
-                gameCanvas.removeEventListener('click', catJump);
-                gameCanvas.removeEventListener('touchend', handleTouch);
-            }
-            
-            // 如果是撞到了，显示重新开始选项
-            if (crashed && gameCanvas && gameCtx) {
-                try {
-                    gameActive = false;
-                    gameStarted = false;
-                    
-                    const ctx = gameCtx;
-                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                    ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 18px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 30);
-                    ctx.font = '14px sans-serif';
-                    ctx.fillText(`分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 - 5);
-                    ctx.font = '12px sans-serif';
-                    ctx.fillStyle = '#ffa500';
-                    ctx.fillText(`最高速度: ${gameSpeed.toFixed(1)}x`, gameCanvas.width / 2, gameCanvas.height / 2 + 18);
-                    ctx.font = '12px sans-serif';
-                    ctx.fillStyle = '#4D9980';
-                    ctx.fillText('點擊重新開始', gameCanvas.width / 2, gameCanvas.height / 2 + 40);
-                    
-                    // 添加重新开始的点击事件
-                    const restartGame = () => {
-                        if (gameCanvas) {
-                            gameCanvas.removeEventListener('click', restartGame);
-                            gameCanvas.removeEventListener('touchend', restartGame);
-                        }
-                        // 重置游戏
-                        restartMiniGame();
-                    };
-                    
-                    gameCanvas.addEventListener('click', restartGame);
-                    gameCanvas.addEventListener('touchend', restartGame);
-                    
-                } catch (error) {
-                    console.error('停止游戏错误:', error);
-                }
-            } else {
-                // 搜索完成，强制结束游戏
-                gameActive = false;
-                gameStarted = false;
-                // 注意：这里不设置 userClosedGame，因为是系统自动关闭的
-                
-                // 直接隐藏游戏浮层
-                const gameOverlay = document.getElementById('miniGameOverlay');
-                if (gameOverlay) {
-                    gameOverlay.style.display = 'none';
-                }
-            }
-        }
-
-        // 重新开始游戏
-        function restartMiniGame() {
-            gameActive = true;
-            gameStarted = false;
-            gameScore = 0;
-            catY = GROUND_Y;
-            catVelocity = 0;
-            pills = [];
-            gameSpeed = 3; // 重置速度
-            isOnGround = true;
-            
-            // 更新分数显示
-            const scoreEl = document.getElementById('gameScore');
-            if (scoreEl) {
-                scoreEl.textContent = '0';
-            }
-            
-            // 重新添加事件
-            if (gameCanvas) {
-                gameCanvas.addEventListener('click', catJump);
-                gameCanvas.addEventListener('touchend', handleTouch);
-                document.addEventListener('keydown', handleGameKeyPress);
-            }
-            
-            // 重新启动游戏循环
-            runGame();
-        }
-
-        // 关闭游戏浮层
-        function closeGameOverlay() {
-            // 停止游戏
-            gameActive = false;
-            gameStarted = false;
-            userClosedGame = true; // 标记用户主动关闭了游戏
-            
-            // 移除事件监听器
-            document.removeEventListener('keydown', handleGameKeyPress);
-            if (gameCanvas) {
-                gameCanvas.removeEventListener('click', catJump);
-                gameCanvas.removeEventListener('touchend', handleTouch);
-            }
-            
-            // 隐藏浮层
-            const gameOverlay = document.getElementById('miniGameOverlay');
-            if (gameOverlay) {
-                gameOverlay.style.display = 'none';
-            }
-            
-            // 更新下方的进度条显示，显示"打开游戏"按钮
-            const list = document.getElementById('placeList');
-            if (list && isRequesting) {
-                showLoadingProgress(list, currentMessage, currentProgress);
-            }
-        }
-
-        // 重新打开游戏
-        function reopenGame() {
-            userClosedGame = false;
-            const list = document.getElementById('placeList');
-            if (list && isRequesting) {
-                const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
-                startMiniGame(list, currentMessage, elapsed);
-            }
-        }
-
-        // 更新加载进度
-        function updateLoadingProgress(message, progress) {
-            // 更新当前状态（给定时器使用）
-            currentMessage = message;
-            currentProgress = progress;
-            
-            const list = document.getElementById('placeList');
-            if (list && isRequesting) {
-                showLoadingProgress(list, message, progress);
-            }
         }
 
         function clearMapMarkers() {
@@ -3746,30 +3055,9 @@
             const thisRequestId = ++requestId;
             isRequesting = true;
             
-            // 重置游戏关闭标志（新的搜索开始）
-            userClosedGame = false;
-            
             clearMapMarkers();
             const list = document.getElementById('placeList');
-            
-            // 显示带进度的加载界面
-            loadingStartTime = Date.now();
-            currentMessage = '正在連接服務器...';
-            currentProgress = 0;
-            showLoadingProgress(list, currentMessage, currentProgress);
-            
-            // 启动定时器，每秒更新一次时间显示
-            if (progressInterval) {
-                clearInterval(progressInterval);
-            }
-            progressInterval = setInterval(() => {
-                if (isRequesting) {
-                    showLoadingProgress(list, currentMessage, currentProgress);
-                } else {
-                    clearInterval(progressInterval);
-                    progressInterval = null;
-                }
-            }, 1000); // 每秒更新一次
+            list.innerHTML = '<div class="loading"><div class="spinner"></div><span>搜尋附近中...</span></div>';
 
             // 若無定位，用地圖中心
             if (!lat || !lon) {
@@ -3781,24 +3069,6 @@
             const cacheKey = `${mapFilter}_${lat.toFixed(4)}_${lon.toFixed(4)}_${searchRadius}`;
             if (placesCache[cacheKey]) {
                 isRequesting = false;
-                
-                // 记录搜索位置
-                lastSearchPosition = { lat, lon };
-                
-                // 隐藏"搜索此区域"按钮
-                hideSearchAreaButton();
-                
-                // 清除进度定时器
-                if (progressInterval) {
-                    clearInterval(progressInterval);
-                    progressInterval = null;
-                }
-                
-                // 停止游戏（如果在玩）
-                if (gameActive) {
-                    stopMiniGame(false);
-                }
-                
                 renderPlaces(placesCache[cacheKey]);
                 return;
             }
@@ -3846,35 +3116,15 @@
                     
                     isRequesting = false;
                     
-                    // 记录搜索位置（即使失败）
-                    lastSearchPosition = { lat, lon };
-                    
-                    // 隐藏"搜索此区域"按钮
-                    hideSearchAreaButton();
-                    
-                    // 清除进度定时器
-                    if (progressInterval) {
-                        clearInterval(progressInterval);
-                        progressInterval = null;
-                    }
-                    
-                    // 停止游戏
-                    if (gameActive) {
-                        stopMiniGame(false);
-                    }
-                    
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
                     if (hintEl) {
                         hintEl.style.display = 'block';
                     }
                     
-                    const finalScore = gameScore > 0 ? `<p style="color: #4D9980; font-size: 16px; font-weight: 500; margin: 8px 0;">🎮 遊戲分數：${gameScore}</p>` : '';
-                    
                     list.innerHTML = `<div class="empty-state">
                         <h3>⏱️ 所有服務器響應超時</h3>
                         <p style="margin: 12px 0;">已嘗試 ${maxRetries} 個服務器都無法連接</p>
-                        ${finalScore}
                         
                         <div style="background: #fff3cd; padding: 12px; border-radius: 8px; margin: 12px 0; text-align: left;">
                             <strong style="color: #856404;">💡 建議解決方法：</strong>
@@ -3902,11 +3152,6 @@
                 const query = `[out:json][timeout:${timeout}];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center ${maxResults};`;
                 const overpass = `${overpassHost}?data=${encodeURIComponent(query)}`;
 
-                // 更新进度：正在查询
-                const serverNum = serverIndex + 1;
-                const totalServers = overpassServers.length;
-                updateLoadingProgress(`正在查詢服務器 ${serverNum}/${totalServers}...`, 20 + (serverIndex * 20));
-
                 // 添加超时处理 - 动态超时时间
                 const timeoutId = setTimeout(() => {
                     currentFetchController.abort();
@@ -3915,9 +3160,6 @@
                 try {
                     const response = await fetch(overpass, { signal });
                     clearTimeout(timeoutId);
-                    
-                    // 更新进度：正在接收数据
-                    updateLoadingProgress('正在接收數據...', 60);
                     
                     // 检查这个请求是否还是最新的
                     if (thisRequestId !== requestId) {
@@ -3928,9 +3170,6 @@
                         throw new Error(`HTTP ${response.status}`);
                     }
                     
-                    // 更新进度：正在解析数据
-                    updateLoadingProgress('正在解析數據...', 80);
-                    
                     const data = await response.json();
                     
                     // 再次检查（因为JSON解析需要时间）
@@ -3938,30 +3177,10 @@
                         return;
                     }
                     
-                    // 更新进度：正在处理结果
-                    updateLoadingProgress('正在處理結果...', 90);
-                    
                     const elements = data.elements || [];
                     
                     if (elements.length === 0) {
                         isRequesting = false;
-                        
-                        // 记录搜索位置
-                        lastSearchPosition = { lat, lon };
-                        
-                        // 隐藏"搜索此区域"按钮
-                        hideSearchAreaButton();
-                        
-                        // 清除进度定时器
-                        if (progressInterval) {
-                            clearInterval(progressInterval);
-                            progressInterval = null;
-                        }
-                        
-                        // 停止游戏
-                        if (gameActive) {
-                            stopMiniGame(false);
-                        }
                         
                         // 根据当前设置给出智能建议
                         const suggestions = [];
@@ -4039,30 +3258,7 @@
                     currentServerIndex = serverIndex % overpassServers.length;
                     isRequesting = false;
                     
-                    // 记录搜索位置
-                    lastSearchPosition = { lat, lon };
-                    
-                    // 隐藏"搜索此区域"按钮
-                    hideSearchAreaButton();
-                    
-                    // 清除进度定时器
-                    if (progressInterval) {
-                        clearInterval(progressInterval);
-                        progressInterval = null;
-                    }
-                    
-                    // 最后进度：完成
-                    updateLoadingProgress('完成！', 100);
-                    
-                    // 停止游戏（如果在玩）
-                    if (gameActive) {
-                        stopMiniGame(false);
-                    }
-                    
-                    // 短暂延迟后显示结果（让用户看到100%）
-                    setTimeout(() => {
-                        renderPlaces(items);
-                    }, 200);
+                    renderPlaces(items);
                     
                 } catch (error) {
                     clearTimeout(timeoutId);
@@ -4078,7 +3274,10 @@
                     
                     // 显示重试提示
                     const nextServer = (serverIndex + 1) % overpassServers.length;
-                    updateLoadingProgress(`服務器 ${serverIndex + 1} 失敗，切換到服務器 ${nextServer + 1}...`, 30 + (serverIndex * 15));
+                    list.innerHTML = `<div class="loading">
+                        <div class="spinner"></div>
+                        <span>服務器 ${serverIndex + 1} 失敗，嘗試服務器 ${nextServer + 1}...</span>
+                    </div>`;
                     
                     // 切换到下一个服务器重试
                     setTimeout(() => {
