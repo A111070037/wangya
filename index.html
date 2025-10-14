@@ -1635,6 +1635,7 @@
 
         // 切換健康記錄類型
         function changeHealthType(type) {
+            console.log(`切換健康記錄類型到: ${type}`);
             currentHealthType = type;
             
             // 更新按鈕狀態
@@ -1653,24 +1654,30 @@
                 syncButton.style.display = 'none';
             }
 
-            // 更新空狀態標題
-            document.getElementById('emptyStateTitle').textContent = `暫無${healthTypes[type].name}記錄`;
-
+            // 重新渲染健康記錄（只顯示選中類型的記錄）
             renderHealthRecords();
             updateChart();
             
             // 顯示切換提示
             const totalRecords = healthRecords.length;
-            const filteredRecords = healthRecords.filter(record => record.type === type);
+            const filteredRecords = healthRecords.filter(record => record && record.type === type);
+            console.log(`總記錄數: ${totalRecords}, ${healthTypes[type].name}記錄數: ${filteredRecords.length}`);
+            
             if (totalRecords > 0 && filteredRecords.length === 0) {
-                showToast(`切換到${healthTypes[type].name}，當前沒有此類型的記錄`, 'info');
+                showToast(`已切換到${healthTypes[type].name}，當前沒有此類型的記錄`, 'info');
             }
         }
 
         // 渲染健康記錄
         function renderHealthRecords() {
             const container = document.getElementById('healthRecordsList');
-            const filteredRecords = healthRecords.filter(record => record.type === currentHealthType);
+            
+            // 確保只顯示當前選中類型的記錄
+            const filteredRecords = healthRecords.filter(record => {
+                return record && record.type === currentHealthType;
+            });
+            
+            console.log(`當前類型: ${currentHealthType}, 過濾後記錄數: ${filteredRecords.length}, 總記錄數: ${healthRecords.length}`);
             
             if (filteredRecords.length === 0) {
                 container.innerHTML = `
@@ -1678,7 +1685,7 @@
                         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
-                        <h3 id="emptyStateTitle">暫無${healthTypes[currentHealthType].name}記錄</h3>
+                        <h3>暫無${healthTypes[currentHealthType].name}記錄</h3>
                         <p>點擊右下方 + 按鈕添加新記錄</p>
                     </div>
                 `;
@@ -1961,8 +1968,15 @@
 
             healthRecords.push(record);
             saveData();
-            renderHealthRecords();
-            updateChart();
+            
+            // 自動切換到剛添加的記錄類型
+            if (currentHealthType !== record.type) {
+                changeHealthType(record.type);
+            } else {
+                renderHealthRecords();
+                updateChart();
+            }
+            
             closeModal('addHealthRecordModal');
             showToast(`${healthTypes[record.type].name}記錄保存成功！`, 'success');
         }
@@ -2058,8 +2072,15 @@
             }
 
             saveData();
-            renderHealthRecords();
-            updateChart();
+            
+            // 確保顯示更新後的記錄
+            if (currentHealthType !== record.type) {
+                changeHealthType(record.type);
+            } else {
+                renderHealthRecords();
+                updateChart();
+            }
+            
             closeModal('editHealthRecordModal');
             showToast('健康記錄更新成功！', 'success');
         }
@@ -2069,12 +2090,20 @@
                 '刪除健康記錄',
                 '確定要刪除這條健康記錄嗎？',
                 () => {
+                    const recordToDelete = healthRecords.find(r => r.id === editingHealthRecordId);
                     healthRecords = healthRecords.filter(r => r.id !== editingHealthRecordId);
                     saveData();
+                    
+                    // 刷新當前類型的記錄顯示
                     renderHealthRecords();
                     updateChart();
                     closeModal('editHealthRecordModal');
-                    showToast('健康記錄已刪除', 'success');
+                    
+                    if (recordToDelete) {
+                        showToast(`${healthTypes[recordToDelete.type].name}記錄已刪除`, 'success');
+                    } else {
+                        showToast('健康記錄已刪除', 'success');
+                    }
                 }
             );
         }
