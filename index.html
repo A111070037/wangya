@@ -1476,6 +1476,8 @@
         let isRequesting = false; // 是否正在请求中
         let displayedCount = 10; // 当前显示的数量
         const INITIAL_DISPLAY_COUNT = 10; // 初始显示10个
+        let globalSearchTimeoutId = null; // 整體搜尋超時計時器
+        const GLOBAL_SEARCH_TIMEOUT_MS = 2 * 60 * 1000; // 兩分鐘
         const LOAD_MORE_COUNT = 10; // 每次加载更多10个
         let myLocationMarker = null; // 用户位置标记
         
@@ -3030,6 +3032,11 @@
                 clearTimeout(fetchTimeout);
                 fetchTimeout = null;
             }
+            // 清除整體搜尋超時計時
+            if (globalSearchTimeoutId) {
+                clearTimeout(globalSearchTimeoutId);
+                globalSearchTimeoutId = null;
+            }
             
             // 取消正在进行的请求
             if (currentFetchController) {
@@ -3097,6 +3104,30 @@
                 emergency: 'nwr[emergency=yes]'
             };
 
+            // 啟動全域兩分鐘超時計時
+            if (globalSearchTimeoutId) clearTimeout(globalSearchTimeoutId);
+            globalSearchTimeoutId = setTimeout(() => {
+                // 超時時若仍在請求，取消並提示
+                if (isRequesting) {
+                    if (currentFetchController) {
+                        try { currentFetchController.abort(); } catch (e) {}
+                    }
+                    isRequesting = false;
+                    const listEl = document.getElementById('placeList');
+                    if (listEl) {
+                        listEl.innerHTML = `<div class="empty-state">
+                            <h3>⏱️ 搜尋已自動取消</h3>
+                            <p style="margin: 8px 0; color:#666;">已超過 2 分鐘未完成。您可縮小範圍或稍後再試。</p>
+                            <div style="display:flex; gap:8px; justify-content:center; margin-top:8px;">
+                                <button onclick="quickFix()" class="sync-btn" style="background:#ff9800;">🔧 自動優化設定</button>
+                                <button onclick="fetchPlaces()" class="sync-btn">🔄 重新搜尋</button>
+                            </div>
+                        </div>`;
+                    }
+                    showToast('搜尋超時已取消，請縮小範圍或重試', 'error');
+                }
+            }, GLOBAL_SEARCH_TIMEOUT_MS);
+
             // 带重试的获取函数
             const fetchWithRetry = async (serverIndex = 0, retryCount = 0) => {
                 // 检查这个请求是否还是最新的
@@ -3116,6 +3147,7 @@
                     }
                     
                     isRequesting = false;
+                    if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
                     
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
@@ -3258,6 +3290,7 @@
                     // 记住成功的服务器
                     currentServerIndex = serverIndex % overpassServers.length;
                     isRequesting = false;
+                    if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
                     
                     renderPlaces(items);
                     
@@ -3270,6 +3303,8 @@
                     }
                     
                     if (error.name === 'AbortError') {
+                        // 如果是使用者/全域超時取消，結束流程
+                        if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
                         return; // 被取消的请求不重试
                     }
                     
