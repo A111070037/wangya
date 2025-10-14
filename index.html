@@ -1126,6 +1126,23 @@
         <div style="padding: 0 12px; margin-bottom: 12px; position: relative;">
             <div id="map" style="height: calc(100dvh - 410px); min-height: 250px; border: 2px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             
+            <!-- 小游戏浮层 - 独立于列表，固定在地图上方 -->
+            <div id="miniGameOverlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.98); z-index: 2000; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                <div style="text-align: center;">
+                    <div style="font-size: 13px; color: #4D9980; font-weight: 500; margin-bottom: 8px;">
+                        🎮 等待太久了？來玩個小遊戲吧！
+                    </div>
+                    <div style="font-size: 11px; color: #999; margin-bottom: 12px;">
+                        📱 手機：點擊遊戲區域 | 💻 電腦：點擊或按空格
+                    </div>
+                    <canvas id="gameCanvas" width="280" height="180" 
+                            style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; margin: 0 auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1); max-width: 100%;"></canvas>
+                    <div style="margin-top: 8px; font-size: 16px; font-weight: 600; color: #4D9980;">
+                        分數：<span id="gameScore">0</span>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 搜索此区域按钮 -->
             <div id="searchAreaBtn" style="display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;">
                 <button onclick="searchCurrentArea()" 
@@ -1509,11 +1526,11 @@
         let gameCanvas = null;
         let gameCtx = null;
         let lastFrameTime = 0;
-        const GRAVITY = 0.6;
-        const JUMP_STRENGTH = -12;
-        const CAT_SIZE = 40;
-        const PILL_WIDTH = 30;
-        const PILL_HEIGHT = 40;
+        const GRAVITY = 0.5;
+        const JUMP_STRENGTH = -10;
+        const CAT_SIZE = 35;
+        const PILL_WIDTH = 25;
+        const PILL_HEIGHT = 35;
         const FRAME_RATE = 1000 / 60; // 60 FPS
         
         // 多个 Overpass API 服务器备用
@@ -3231,32 +3248,20 @@
                 gameActive = true;
                 gameStarted = false;
                 gameScore = 0;
-                catY = 150;
+                catY = 130; // 调整初始位置适应新画布大小
                 catVelocity = 0;
                 pills = [];
             
+            // 在下方列表区域只显示简单的等待提示
             container.innerHTML = `
-                <div style="padding: 20px; text-align: center; min-height: 400px;">
-                    <div style="font-size: 14px; color: #666; margin-bottom: 12px;">
-                        ${message} · 已等待 <strong>${elapsed}</strong> 秒
+                <div class="loading" style="padding: 30px 20px;">
+                    <div style="font-size: 14px; color: #666; margin-bottom: 8px;">
+                        ${message}
                     </div>
-                    <div style="background: #f0f4f8; border-radius: 12px; padding: 16px; margin-bottom: 12px;">
-                        <div style="font-size: 13px; color: #4D9980; font-weight: 500; margin-bottom: 8px;">
-                            🎮 等待太久了？來玩個小遊戲吧！
-                        </div>
-                        <div style="font-size: 12px; color: #999;">
-                            📱 手機：點擊遊戲區域 | 💻 電腦：點擊或按空格<br>
-                            讓貓咪跳起來避開藥丸
-                        </div>
+                    <div style="font-size: 12px; color: #999;">
+                        已等待 <strong>${elapsed}</strong> 秒
                     </div>
-                    <div style="position: relative; width: 300px; max-width: 100%; margin: 0 auto;">
-                        <canvas id="gameCanvas" width="300" height="200" 
-                                style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></canvas>
-                    </div>
-                    <div style="margin-top: 12px; font-size: 18px; font-weight: 600; color: #4D9980;">
-                        分數：<span id="gameScore">0</span>
-                    </div>
-                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center;">
+                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                         <button onclick="cancelCurrentRequest(); quickFix();" 
                                 style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
                                        color: #4a5568; 
@@ -3280,6 +3285,12 @@
                     </div>
                 </div>
             `;
+            
+            // 显示独立的游戏浮层
+            const gameOverlay = document.getElementById('miniGameOverlay');
+            if (gameOverlay) {
+                gameOverlay.style.display = 'block';
+            }
             
             // 初始化游戏
             setTimeout(() => {
@@ -3380,16 +3391,16 @@
             
             // 绘制地面
             ctx.fillStyle = '#e0e0e0';
-            ctx.fillRect(0, 190, canvas.width, 10);
+            ctx.fillRect(0, 170, canvas.width, 10);
             
             if (gameStarted) {
                 // 更新猫咪位置
                 catVelocity += GRAVITY;
                 catY += catVelocity;
                 
-                // 限制猫咪不要掉出地面
-                if (catY > 150) {
-                    catY = 150;
+                // 限制猫咪不要掉出地面（调整适应新画布）
+                if (catY > 130) {
+                    catY = 130;
                     catVelocity = 0;
                 }
                 if (catY < 0) {
@@ -3398,10 +3409,10 @@
                 }
                 
                 // 生成药丸障碍物
-                if (pills.length === 0 || pills[pills.length - 1].x < canvas.width - 150) {
+                if (pills.length === 0 || pills[pills.length - 1].x < canvas.width - 120) {
                     pills.push({
                         x: canvas.width,
-                        y: 150,
+                        y: 130,
                         passed: false
                     });
                 }
@@ -3411,15 +3422,15 @@
                     pill.x -= 3; // 移动速度
                     
                     // 检测碰撞（更精确的碰撞检测）
-                    const catLeft = 40 - CAT_SIZE/2;
-                    const catRight = 40 + CAT_SIZE/2;
-                    const catTop = catY;
-                    const catBottom = catY + CAT_SIZE;
+                    const catLeft = 40 - CAT_SIZE/2 + 5;
+                    const catRight = 40 + CAT_SIZE/2 - 5;
+                    const catTop = catY + 5;
+                    const catBottom = catY + CAT_SIZE - 5;
                     
-                    const pillLeft = pill.x;
-                    const pillRight = pill.x + PILL_WIDTH;
-                    const pillTop = pill.y;
-                    const pillBottom = pill.y + PILL_HEIGHT;
+                    const pillLeft = pill.x + 5;
+                    const pillRight = pill.x + PILL_WIDTH - 5;
+                    const pillTop = pill.y + 5;
+                    const pillBottom = pill.y + PILL_HEIGHT - 5;
                     
                     if (catRight > pillLeft && catLeft < pillRight && 
                         catBottom > pillTop && catTop < pillBottom) {
@@ -3447,25 +3458,28 @@
                         // 绘制胶囊形状
                         ctx.fillStyle = '#ff6b9d';
                         
+                        const radius = PILL_WIDTH / 2;
+                        const centerY = pill.y + PILL_HEIGHT / 2;
+                        
                         // 上半圆
                         ctx.beginPath();
-                        ctx.arc(pill.x + 15, pill.y + 15, 14, 0, Math.PI, true);
+                        ctx.arc(pill.x + radius, pill.y + radius, radius - 1, 0, Math.PI, true);
                         ctx.fill();
                         
                         // 矩形主体
-                        ctx.fillRect(pill.x + 1, pill.y + 15, 28, 10);
+                        ctx.fillRect(pill.x + 1, pill.y + radius, PILL_WIDTH - 2, PILL_HEIGHT - PILL_WIDTH);
                         
                         // 下半圆
                         ctx.beginPath();
-                        ctx.arc(pill.x + 15, pill.y + 25, 14, 0, Math.PI, false);
+                        ctx.arc(pill.x + radius, pill.y + PILL_HEIGHT - radius, radius - 1, 0, Math.PI, false);
                         ctx.fill();
                         
                         // 药丸中间的线
                         ctx.strokeStyle = '#fff';
                         ctx.lineWidth = 2;
                         ctx.beginPath();
-                        ctx.moveTo(pill.x + 5, pill.y + 20);
-                        ctx.lineTo(pill.x + 25, pill.y + 20);
+                        ctx.moveTo(pill.x + 4, centerY);
+                        ctx.lineTo(pill.x + PILL_WIDTH - 4, centerY);
                         ctx.stroke();
                         
                         return true;
@@ -3515,9 +3529,9 @@
             // 提示文字
             if (!gameStarted) {
                 ctx.fillStyle = '#999';
-                ctx.font = '14px sans-serif';
+                ctx.font = '13px sans-serif';
                 ctx.textAlign = 'center';
-                ctx.fillText('點擊畫面開始', canvas.width / 2, 30);
+                ctx.fillText('點擊畫面開始', canvas.width / 2, 25);
             }
             
             // 继续游戏循环
@@ -3550,13 +3564,27 @@
                     ctx.fillStyle = 'rgba(0,0,0,0.5)';
                     ctx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
                     ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 20px sans-serif';
+                    ctx.font = 'bold 18px sans-serif';
                     ctx.textAlign = 'center';
                     ctx.fillText('💥 撞到了！', gameCanvas.width / 2, gameCanvas.height / 2 - 10);
                     ctx.font = '14px sans-serif';
                     ctx.fillText(`最終分數: ${gameScore}`, gameCanvas.width / 2, gameCanvas.height / 2 + 20);
+                    
+                    // 2秒后隐藏游戏浮层
+                    setTimeout(() => {
+                        const gameOverlay = document.getElementById('miniGameOverlay');
+                        if (gameOverlay) {
+                            gameOverlay.style.display = 'none';
+                        }
+                    }, 2000);
                 } catch (error) {
                     console.error('停止游戏错误:', error);
+                }
+            } else {
+                // 直接隐藏游戏浮层
+                const gameOverlay = document.getElementById('miniGameOverlay');
+                if (gameOverlay) {
+                    gameOverlay.style.display = 'none';
                 }
             }
         }
