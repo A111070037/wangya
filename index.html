@@ -1126,6 +1126,28 @@
         <div style="padding: 0 12px; margin-bottom: 12px; position: relative;">
             <div id="map" style="height: calc(100dvh - 410px); min-height: 250px; border: 2px solid #e0e0e0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
             
+            <!-- 搜索此区域按钮 -->
+            <div id="searchAreaBtn" style="display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;">
+                <button onclick="searchCurrentArea()" 
+                        style="background: linear-gradient(135deg, #4D9980 0%, #5daa94 100%); 
+                               color: white; 
+                               border: none; 
+                               padding: 10px 20px; 
+                               border-radius: 8px; 
+                               font-size: 14px; 
+                               font-weight: 500;
+                               cursor: pointer; 
+                               box-shadow: 0 3px 10px rgba(77, 153, 128, 0.4);
+                               transition: all 0.3s ease;
+                               display: inline-flex;
+                               align-items: center;
+                               gap: 6px;"
+                        onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 15px rgba(77, 153, 128, 0.5)';"
+                        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 3px 10px rgba(77, 153, 128, 0.4)';">
+                    <span style="font-size: 16px;">🔍</span> 搜尋此區域
+                </button>
+            </div>
+            
             <!-- 回到我的位置按钮 - 在地图缩放控制按钮下方 -->
             <button id="myLocationBtn" onclick="goToMyLocation()" style="position: absolute; top: 92px; right: 24px; z-index: 1000; background: white; border: 2px solid rgba(0,0,0,0.2); border-radius: 4px; width: 34px; height: 34px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s;" title="回到我的位置" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">
                 📍
@@ -1473,6 +1495,8 @@
         let progressInterval = null; // 进度更新定时器
         let currentMessage = '正在連接服務器...'; // 当前加载消息
         let currentProgress = 0; // 当前进度
+        let lastSearchPosition = null; // 上次搜索的位置
+        let autoSearchEnabled = false; // 是否启用自动搜索
         
         // 多个 Overpass API 服务器备用
         const overpassServers = [
@@ -2930,11 +2954,54 @@
                 debouncedFetchPlaces();
             }
             
-            // 地图移动结束后才加载新数据（防止频繁请求）
+            // 地图移动结束后显示"搜索此区域"按钮
             mapInstance.on('moveend', () => {
                 const center = mapInstance.getCenter();
-                debouncedFetchPlaces(center.lat, center.lng);
+                
+                // 计算移动距离
+                if (lastSearchPosition) {
+                    const distance = distanceInMeters(
+                        lastSearchPosition.lat, 
+                        lastSearchPosition.lon, 
+                        center.lat, 
+                        center.lng
+                    );
+                    
+                    // 如果移动距离超过500米，显示"搜索此区域"按钮
+                    if (distance > 500) {
+                        showSearchAreaButton();
+                    } else {
+                        // 移动距离太小，隐藏按钮
+                        hideSearchAreaButton();
+                    }
+                } else {
+                    // 首次移动，隐藏按钮
+                    hideSearchAreaButton();
+                }
             });
+        }
+
+        // 显示"搜索此区域"按钮
+        function showSearchAreaButton() {
+            const btn = document.getElementById('searchAreaBtn');
+            if (btn) {
+                btn.style.display = 'block';
+            }
+        }
+
+        // 隐藏"搜索此区域"按钮
+        function hideSearchAreaButton() {
+            const btn = document.getElementById('searchAreaBtn');
+            if (btn) {
+                btn.style.display = 'none';
+            }
+        }
+
+        // 搜索当前区域
+        function searchCurrentArea() {
+            hideSearchAreaButton();
+            const center = mapInstance.getCenter();
+            fetchPlaces(center.lat, center.lng);
         }
 
         // 回到我的位置
@@ -3062,12 +3129,42 @@
             let actionButtons = '';
             if (elapsed > 10) {
                 actionButtons = `
-                    <div style="margin-top: 16px; display: flex; gap: 8px; justify-content: center;">
-                        <button onclick="cancelCurrentRequest(); quickFix();" class="sync-btn" style="background: #ff9800; padding: 8px 16px; font-size: 13px;">
-                            🔧 優化設定重試
+                    <div style="margin-top: 16px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button onclick="cancelCurrentRequest(); quickFix();" 
+                                style="background: linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%); 
+                                       color: #4a5568; 
+                                       border: 1px solid #cbd5e0; 
+                                       padding: 10px 20px; 
+                                       border-radius: 8px; 
+                                       font-size: 14px; 
+                                       font-weight: 500;
+                                       cursor: pointer; 
+                                       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                                       transition: all 0.3s ease;
+                                       display: inline-flex;
+                                       align-items: center;
+                                       gap: 6px;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.12)'; this.style.background='linear-gradient(135deg, #a8b9cc 0%, #98aabb 100%)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.08)'; this.style.background='linear-gradient(135deg, #b8c5d6 0%, #a8b9cc 100%)';">
+                            <span style="font-size: 16px;">⚡</span> 優化設定重試
                         </button>
-                        <button onclick="cancelCurrentRequest();" class="sync-btn" style="background: #f44336; padding: 8px 16px; font-size: 13px;">
-                            ✖️ 取消
+                        <button onclick="cancelCurrentRequest();" 
+                                style="background: linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%); 
+                                       color: #5a6270; 
+                                       border: 1px solid #cbd5e0; 
+                                       padding: 10px 20px; 
+                                       border-radius: 8px; 
+                                       font-size: 14px; 
+                                       font-weight: 500;
+                                       cursor: pointer; 
+                                       box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+                                       transition: all 0.3s ease;
+                                       display: inline-flex;
+                                       align-items: center;
+                                       gap: 6px;"
+                                onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 10px rgba(0,0,0,0.12)'; this.style.background='linear-gradient(135deg, #d5d8dc 0%, #c5c9cd 100%)';"
+                                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 6px rgba(0,0,0,0.08)'; this.style.background='linear-gradient(135deg, #e8eaed 0%, #d5d8dc 100%)';">
+                            <span style="font-size: 16px;">⏸️</span> 取消
                         </button>
                     </div>
                 `;
@@ -3154,6 +3251,19 @@
             const cacheKey = `${mapFilter}_${lat.toFixed(4)}_${lon.toFixed(4)}_${searchRadius}`;
             if (placesCache[cacheKey]) {
                 isRequesting = false;
+                
+                // 记录搜索位置
+                lastSearchPosition = { lat, lon };
+                
+                // 隐藏"搜索此区域"按钮
+                hideSearchAreaButton();
+                
+                // 清除进度定时器
+                if (progressInterval) {
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                }
+                
                 renderPlaces(placesCache[cacheKey]);
                 return;
             }
@@ -3200,6 +3310,18 @@
                     }
                     
                     isRequesting = false;
+                    
+                    // 记录搜索位置（即使失败）
+                    lastSearchPosition = { lat, lon };
+                    
+                    // 隐藏"搜索此区域"按钮
+                    hideSearchAreaButton();
+                    
+                    // 清除进度定时器
+                    if (progressInterval) {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                    }
                     
                     // 显示提示信息
                     const hintEl = document.getElementById('mapHint');
@@ -3281,6 +3403,18 @@
                     if (elements.length === 0) {
                         isRequesting = false;
                         
+                        // 记录搜索位置
+                        lastSearchPosition = { lat, lon };
+                        
+                        // 隐藏"搜索此区域"按钮
+                        hideSearchAreaButton();
+                        
+                        // 清除进度定时器
+                        if (progressInterval) {
+                            clearInterval(progressInterval);
+                            progressInterval = null;
+                        }
+                        
                         // 根据当前设置给出智能建议
                         const suggestions = [];
                         if (searchRadius < 2000) {
@@ -3356,6 +3490,12 @@
                     // 记住成功的服务器
                     currentServerIndex = serverIndex % overpassServers.length;
                     isRequesting = false;
+                    
+                    // 记录搜索位置
+                    lastSearchPosition = { lat, lon };
+                    
+                    // 隐藏"搜索此区域"按钮
+                    hideSearchAreaButton();
                     
                     // 清除进度定时器
                     if (progressInterval) {
