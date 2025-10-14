@@ -1093,7 +1093,7 @@
 
         <!-- 类别筛选 -->
         <div style="padding: 0 20px 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">
-            <button class="type-btn active" data-filter="all" onclick="setMapFilter('all')"><span class="type-name">全部</span></button>
+            <!-- 移除「全部」選項，預設採用更快的實際類別 -->
             <button class="type-btn" data-filter="pharmacy" onclick="setMapFilter('pharmacy')"><span class="type-name">藥局</span></button>
             <button class="type-btn" data-filter="hospital" onclick="setMapFilter('hospital')"><span class="type-name">大醫院</span></button>
             <button class="type-btn" data-filter="internal" onclick="setMapFilter('internal')"><span class="type-name">內科</span></button>
@@ -1477,7 +1477,7 @@
         // Map related state
         let mapInstance = null;
         let mapInited = false;
-        let mapFilter = 'all';
+        let mapFilter = 'pharmacy';
         let mapMarkers = [];
         let userPosition = null; // {lat, lon}
         let searchRadius = 1000; // 默认1公里（减少查询复杂度）
@@ -3253,8 +3253,8 @@
                 const overpassHost = overpassServers[serverIndex % overpassServers.length];
                 
                 // 动态调整查询参数：根据范围调整结果数量和超时时间
-                const maxResults = searchRadius <= 2000 ? 40 : 25;
-                const timeout = searchRadius <= 2000 ? 10 : 15;
+            const maxResults = searchRadius <= 2000 ? 40 : 25;
+            const timeout = searchRadius <= 2000 ? 10 : 15;
                 const clientTimeout = (timeout + 5) * 1000; // 比服务器超时多5秒
                 
                 const query = `[out:json][timeout:${timeout}];(${filters[mapFilter]}(around:${searchRadius},${lat},${lon}););out center ${maxResults};`;
@@ -3287,9 +3287,10 @@
                     
                     const elements = data.elements || [];
                     
-                    if (elements.length === 0) {
+                if (elements.length === 0) {
                         isRequesting = false;
-                        
+                    if (globalSearchTimeoutId) { clearTimeout(globalSearchTimeoutId); globalSearchTimeoutId = null; }
+                    hideSearchTimer();
                         // 根据当前设置给出智能建议
                         const suggestions = [];
                         if (searchRadius < 2000) {
