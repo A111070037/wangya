@@ -3038,24 +3038,56 @@
             
             // 重置请求状态
             isRequesting = false;
+            
+            // 显示取消提示
+            const list = document.getElementById('placeList');
+            if (list) {
+                list.innerHTML = `
+                    <div class="empty-state">
+                        <h3>🚫 已取消搜尋</h3>
+                        <p style="color: #999; margin: 12px 0;">您可以調整設定後重新搜尋</p>
+                        <button onclick="fetchPlaces()" class="sync-btn" style="margin-top: 12px;">🔄 重新搜尋</button>
+                    </div>
+                `;
+            }
         }
 
         // 显示加载进度
         function showLoadingProgress(container, message, progress) {
             const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000);
-            const estimated = searchRadius <= 1000 ? '5-8秒' : searchRadius <= 2000 ? '8-12秒' : '10-15秒';
+            
+            // 智能提示和操作：根据实际等待时间
+            let actionButtons = '';
+            if (elapsed > 10) {
+                actionButtons = `
+                    <div style="margin-top: 16px; display: flex; gap: 8px; justify-content: center;">
+                        <button onclick="cancelCurrentRequest(); quickFix();" class="sync-btn" style="background: #ff9800; padding: 8px 16px; font-size: 13px;">
+                            🔧 優化設定重試
+                        </button>
+                        <button onclick="cancelCurrentRequest();" class="sync-btn" style="background: #f44336; padding: 8px 16px; font-size: 13px;">
+                            ✖️ 取消
+                        </button>
+                    </div>
+                `;
+            }
             
             container.innerHTML = `
                 <div class="loading" style="padding: 30px 20px;">
                     <div class="spinner"></div>
                     <div style="margin-top: 16px; text-align: center;">
                         <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${message}</div>
-                        <div style="font-size: 13px; color: #999; margin-bottom: 16px;">已等待 ${elapsed} 秒 · 預計 ${estimated}</div>
+                        <div style="font-size: 13px; color: #999; margin-bottom: 16px;">
+                            已等待 <strong>${elapsed}</strong> 秒
+                            ${elapsed > 20 ? '<span style="color: #ff9800;">（較慢）</span>' : ''}
+                            ${elapsed > 45 ? '<span style="color: #f44336;">（異常慢）</span>' : ''}
+                        </div>
                         
                         <!-- 进度条 -->
                         <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden; margin: 0 auto; max-width: 200px;">
                             <div style="background: linear-gradient(90deg, #4D9980, #6cb896); height: 100%; width: ${progress}%; transition: width 0.3s;"></div>
                         </div>
+                        
+                        ${actionButtons}
                     </div>
                 </div>
             `;
