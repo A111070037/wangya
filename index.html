@@ -3173,7 +3173,50 @@
                     
                     if (elements.length === 0) {
                         isRequesting = false;
-                        list.innerHTML = '<div class="empty-state"><h3>📍 附近沒有找到資料</h3><p>試試調整搜尋範圍或類別</p><button onclick="fetchPlaces()" class="sync-btn" style="margin-top:12px;">重新搜尋</button></div>';
+                        
+                        // 根据当前设置给出智能建议
+                        const suggestions = [];
+                        if (searchRadius < 2000) {
+                            suggestions.push('擴大搜尋範圍到2-3公里');
+                        }
+                        if (mapFilter !== 'all' && mapFilter !== 'pharmacy' && mapFilter !== 'hospital') {
+                            suggestions.push('試試「全部」或「藥局」類別');
+                        }
+                        if (searchRadius >= 2000) {
+                            suggestions.push('試試其他類別或移動地圖位置');
+                        }
+                        
+                        const suggestionHtml = suggestions.length > 0 ? 
+                            `<ul style="text-align: left; margin: 12px auto; max-width: 250px; color: #666;">
+                                ${suggestions.map(s => `<li style="margin: 6px 0;">• ${s}</li>`).join('')}
+                            </ul>` : '';
+                        
+                        const categoryNames = {
+                            'all': '全部類別',
+                            'pharmacy': '藥局',
+                            'hospital': '大醫院',
+                            'internal': '內科',
+                            'pediatric': '小兒科',
+                            'dental': '牙科',
+                            'eye': '眼科',
+                            'ent': '耳鼻喉科',
+                            'obgyn': '婦產科',
+                            'ortho': '骨科',
+                            'derm': '皮膚科',
+                            'emergency': '急診'
+                        };
+                        const categoryName = categoryNames[mapFilter] || mapFilter;
+                        const rangeText = searchRadius >= 1000 ? (searchRadius/1000) + '公里' : searchRadius + '米';
+                        
+                        list.innerHTML = `<div class="empty-state">
+                            <h3>📍 附近沒有找到資料</h3>
+                            <p style="color: #999; margin: 12px 0;">當前搜尋：${categoryName} · ${rangeText}</p>
+                            ${suggestionHtml}
+                            <div style="display: flex; gap: 8px; justify-content: center; margin-top: 16px;">
+                                ${searchRadius < 3000 ? '<button onclick="expandSearchRadius()" class="sync-btn" style="background: #ff9800;">📏 擴大範圍</button>' : ''}
+                                <button onclick="fetchPlaces()" class="sync-btn">🔄 重新搜尋</button>
+                            </div>
+                        </div>`;
                         return;
                     }
 
@@ -3468,6 +3511,28 @@
             }
             
             // 用户主动操作，立即执行
+            fetchPlaces(center.lat, center.lng);
+        }
+
+        // 扩大搜索范围（智能建议）
+        function expandSearchRadius() {
+            const radiusSelect = document.getElementById('searchRadius');
+            
+            // 根据当前范围智能扩大
+            if (searchRadius < 1000) {
+                searchRadius = 1000;
+                radiusSelect.value = '1000';
+            } else if (searchRadius < 2000) {
+                searchRadius = 2000;
+                radiusSelect.value = '2000';
+            } else {
+                searchRadius = 3000;
+                radiusSelect.value = '3000';
+            }
+            
+            // 立即搜索
+            cancelCurrentRequest();
+            const center = mapInstance.getCenter();
             fetchPlaces(center.lat, center.lng);
         }
 
