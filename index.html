@@ -3226,15 +3226,17 @@
         // 启动迷你游戏
         function startMiniGame(container, message, elapsed) {
             if (gameActive) return;
-            gameActive = true;
-            gameStarted = false;
-            gameScore = 0;
-            catY = 150;
-            catVelocity = 0;
-            pills = [];
+            
+            try {
+                gameActive = true;
+                gameStarted = false;
+                gameScore = 0;
+                catY = 150;
+                catVelocity = 0;
+                pills = [];
             
             container.innerHTML = `
-                <div style="padding: 20px; text-align: center;">
+                <div style="padding: 20px; text-align: center; min-height: 400px;">
                     <div style="font-size: 14px; color: #666; margin-bottom: 12px;">
                         ${message} · 已等待 <strong>${elapsed}</strong> 秒
                     </div>
@@ -3243,12 +3245,14 @@
                             🎮 等待太久了？來玩個小遊戲吧！
                         </div>
                         <div style="font-size: 12px; color: #999;">
-                            📱 手機：點擊畫面 | 💻 電腦：點擊或按空格<br>
+                            📱 手機：點擊遊戲區域 | 💻 電腦：點擊或按空格<br>
                             讓貓咪跳起來避開藥丸
                         </div>
                     </div>
-                    <canvas id="gameCanvas" width="300" height="200" 
-                            style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; margin: 0 auto; box-shadow: 0 2px 8px rgba(0,0,0,0.1); max-width: 100%; touch-action: none;"></canvas>
+                    <div style="position: relative; width: 300px; max-width: 100%; margin: 0 auto;">
+                        <canvas id="gameCanvas" width="300" height="200" 
+                                style="border: 2px solid #e0e0e0; border-radius: 8px; background: #fff; cursor: pointer; display: block; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></canvas>
+                    </div>
                     <div style="margin-top: 12px; font-size: 18px; font-weight: 600; color: #4D9980;">
                         分數：<span id="gameScore">0</span>
                     </div>
@@ -3294,7 +3298,7 @@
                     
                     // 添加点击和触摸事件（移动端兼容）
                     gameCanvas.addEventListener('click', catJump);
-                    gameCanvas.addEventListener('touchstart', handleTouch, { passive: false });
+                    gameCanvas.addEventListener('touchend', handleTouch);
                     document.addEventListener('keydown', handleGameKeyPress);
                     
                     runGame();
@@ -3303,14 +3307,31 @@
                     gameActive = false;
                 }
             }, 100);
+            
+            } catch (error) {
+                console.error('启动游戏失败:', error);
+                gameActive = false;
+                // 降级显示普通加载界面
+                container.innerHTML = `
+                    <div class="loading" style="padding: 30px 20px;">
+                        <div class="spinner"></div>
+                        <div style="margin-top: 16px; text-align: center;">
+                            <div style="font-size: 15px; font-weight: 500; margin-bottom: 8px;">${message}</div>
+                            <div style="font-size: 13px; color: #999; margin-bottom: 16px;">已等待 ${elapsed} 秒</div>
+                        </div>
+                    </div>
+                `;
+            }
         }
 
         // 猫咪跳跃
         function catJump(e) {
-            if (e && e.preventDefault) {
+            if (!gameActive) return;
+            
+            // 只在点击游戏画布时阻止默认行为
+            if (e && e.target === gameCanvas && e.preventDefault) {
                 e.preventDefault();
             }
-            if (!gameActive) return;
             
             if (!gameStarted) {
                 gameStarted = true;
@@ -3320,11 +3341,12 @@
 
         // 触摸控制（手机端）
         function handleTouch(e) {
-            if (e.cancelable) {
-                e.preventDefault();
-            }
-            e.stopPropagation();
-            catJump(e);
+            // 只在游戏激活时处理
+            if (!gameActive) return;
+            
+            // 不阻止默认行为，允许滚动
+            // 只调用跳跃
+            catJump();
         }
 
         // 键盘控制
@@ -3518,7 +3540,7 @@
             document.removeEventListener('keydown', handleGameKeyPress);
             if (gameCanvas) {
                 gameCanvas.removeEventListener('click', catJump);
-                gameCanvas.removeEventListener('touchstart', handleTouch);
+                gameCanvas.removeEventListener('touchend', handleTouch);
             }
             
             // 显示游戏结束画面
