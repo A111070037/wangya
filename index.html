@@ -324,6 +324,7 @@
             justify-content: space-around;
             padding: calc(12px + env(safe-area-inset-bottom)/2) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); /* 讓內容不被 Safari 工具列和側邊遮擋 */
             border-top: 1px solid #E5E5E5;
+            z-index: 1500; /* 高於地圖與其控制元件，但低於模態視窗 */
         }
 
         .nav-item {
@@ -358,7 +359,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0,0,0,0.5);
-            z-index: 1000;
+            z-index: 3000; /* 最高層級，覆蓋底部導航 */
             animation: fadeIn 0.3s;
         }
 
