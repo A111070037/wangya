@@ -2191,7 +2191,7 @@
             showModal('exportOptionsModal');
         }
 
-        function exportToPDF() {
+        async function exportToPDF() {
             const selectedTypes = getSelectedExportTypes();
             if (selectedTypes.length === 0) {
                 showToast('請選擇至少一種記錄類型', 'error');
@@ -2210,6 +2210,8 @@
             container.style.width = '794px'; // A4 寬度 @96DPI 約 794px
             container.style.boxSizing = 'border-box';
             container.style.fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Microsoft JhengHei', sans-serif";
+            // 讓每個區塊避免被截斷
+            container.style.wordBreak = 'break-word';
 
             const title = document.createElement('h2');
             title.textContent = '健康記錄報告';
@@ -2223,12 +2225,15 @@
             gen.textContent = '生成時間：' + new Date().toLocaleString('zh-TW');
             container.appendChild(gen);
 
+            const imageLoadPromises = [];
+
             selectedTypes.forEach(type => {
                 const typeRecords = filteredRecords.filter(r => r.type === type);
                 if (typeRecords.length === 0) return;
 
                 const section = document.createElement('div');
                 section.style.margin = '16px 0 24px';
+                section.style.pageBreakInside = 'avoid';
 
                 const header = document.createElement('h3');
                 header.textContent = `${healthTypes[type].name}記錄`;
@@ -2248,14 +2253,14 @@
                     img.style.height = 'auto';
                     img.style.margin = '6px 0 10px';
                     section.appendChild(img);
+                    imageLoadPromises.push(new Promise(res => { img.onload = () => res(); img.onerror = () => res(); }));
                 }
 
                 // 清單
                 const list = document.createElement('div');
                 const recordsForPdf = typeRecords
                     .slice()
-                    .sort((a, b) => new Date(b.date) - new Date(a.date))
-                    .slice(0, 30);
+                    .sort((a, b) => new Date(b.date) - new Date(a.date)); // 顯示所有筆數
                 list.style.display = 'grid';
                 list.style.gridTemplateColumns = '1fr 1fr';
                 list.style.columnGap = '24px';
@@ -2263,6 +2268,7 @@
 
                 recordsForPdf.forEach(record => {
                     const row = document.createElement('div');
+                    row.style.pageBreakInside = 'avoid';
                     const dateStr = new Date(record.date).toLocaleString('zh-TW');
                     let valueStr = '';
                     if (record.type === 'bloodPressure') {
@@ -2282,6 +2288,9 @@
 
             // 掛到 body 後用 html2pdf 匯出，再移除
             document.body.appendChild(container);
+
+            // 等待所有圖表圖片載入，避免被截圖時缺圖
+            try { await Promise.all(imageLoadPromises); } catch (_) {}
 
             const opt = {
                 margin:       [10, 10, 10, 10], // mm
