@@ -3872,6 +3872,115 @@
             // 可以添加更多映射
         };
         
+        // 藥品預設資料（與 Swift 中的 MedicineCategoryPresets 對應）
+        const medicinePresets = {
+            '甲狀腺藥物': {
+                category: '處方藥',
+                dosage: '2',
+                unit: '顆',
+                quantity: '30',
+                quantityUnit: '顆',
+                timeSlots: ['morning'],
+                frequency: '每天',
+                notes: '甲狀腺藥物通常需要定期服用，請按醫囑使用',
+                expiryDays: 90
+            },
+            '維他命B': {
+                category: '保健品',
+                dosage: '2',
+                unit: '顆',
+                quantity: '120',
+                quantityUnit: '顆',
+                timeSlots: ['morning'],
+                frequency: '每天',
+                notes: '維他命B有助於能量代謝，建議早餐後服用',
+                expiryDays: 365
+            },
+            '維他命Ｂ': {  // 全形字符支持
+                category: '保健品',
+                dosage: '2',
+                unit: '顆',
+                quantity: '120',
+                quantityUnit: '顆',
+                timeSlots: ['morning'],
+                frequency: '每天',
+                notes: '維他命B有助於能量代謝，建議早餐後服用',
+                expiryDays: 365
+            },
+            '維他命C': {
+                category: '保健品',
+                dosage: '4',
+                unit: '顆',
+                quantity: '240',
+                quantityUnit: '顆',
+                timeSlots: ['morning'],
+                frequency: '每天',
+                notes: '維他命C有助於增強免疫力，建議空腹服用',
+                expiryDays: 365
+            },
+            '維他命Ｃ': {  // 全形字符支持
+                category: '保健品',
+                dosage: '4',
+                unit: '顆',
+                quantity: '240',
+                quantityUnit: '顆',
+                timeSlots: ['morning'],
+                frequency: '每天',
+                notes: '維他命C有助於增強免疫力，建議空腹服用',
+                expiryDays: 365
+            },
+            '若元腸胃錠': {
+                category: '保健品',
+                dosage: '3',
+                unit: '顆',
+                quantity: '960',
+                quantityUnit: '顆',
+                timeSlots: ['morning', 'noon', 'evening'],
+                frequency: '每天',
+                notes: '腸胃藥建議飯前或飯後服用，請按醫囑使用',
+                expiryDays: 180
+            }
+        };
+        
+        // 根據藥品名稱獲取預設資料
+        function getMedicinePreset(medicineName) {
+            // 精確匹配
+            if (medicinePresets[medicineName]) {
+                return medicinePresets[medicineName];
+            }
+            
+            // 模糊匹配
+            for (const [key, preset] of Object.entries(medicinePresets)) {
+                if (medicineName.includes(key) || key.includes(medicineName)) {
+                    return preset;
+                }
+            }
+            
+            // 關鍵字匹配（支持半形和全形字符）
+            const keywords = {
+                '甲狀腺': '甲狀腺藥物',
+                '維他命B': '維他命B',
+                '維他命Ｂ': '維他命Ｂ',
+                '維生素B': '維他命B',
+                '維生素Ｂ': '維他命Ｂ',
+                '維他命C': '維他命C',
+                '維他命Ｃ': '維他命Ｃ',
+                '維生素C': '維他命C',
+                '維生素Ｃ': '維他命Ｃ',
+                '腸胃': '若元腸胃錠',
+                '若元': '若元腸胃錠'
+            };
+            
+            for (const [keyword, presetKey] of Object.entries(keywords)) {
+                if (medicineName.includes(keyword)) {
+                    return medicinePresets[presetKey];
+                }
+            }
+            
+            // 返回 null，表示沒有預設
+            return null;
+        }
+        
         // 載入 TensorFlow.js 模型
         async function loadTensorFlowModel() {
             try {
@@ -4030,7 +4139,9 @@
             // 轉換為標準格式
             // 注意：這裡需要根據你的模型輸出格式調整
             const result = [];
-            const labels = ['藥品A', '藥品B', '藥品C']; // 替換為你的實際標籤
+            // 🎯 你的 4 種藥品標籤（與 Teachable Machine 訓練時的類別名稱對應）
+            // 注意：從 metadata.json 讀取，順序為：甲狀腺藥物, 若元腸胃錠, 維他命Ｂ, 維他命Ｃ
+            const labels = ['甲狀腺藥物', '若元腸胃錠', '維他命Ｂ', '維他命Ｃ'];
             
             predictions.forEach((prob, index) => {
                 if (labels[index]) {
@@ -4073,6 +4184,39 @@
             // 填入藥品名稱
             document.getElementById('medicineName').value = recognizedMedicineName;
             
+            // 獲取藥品預設資料
+            const preset = getMedicinePreset(recognizedMedicineName);
+            
+            if (preset) {
+                console.log('🎯 找到藥品預設資料:', recognizedMedicineName, preset);
+                
+                // 填入分類
+                document.getElementById('medicineCategory').value = preset.category;
+                
+                // 填入劑量和單位
+                document.getElementById('medicineDosage').value = `${preset.dosage} ${preset.unit}`;
+                
+                // 填入庫存
+                document.getElementById('medicineStock').value = preset.quantity;
+                
+                // 填入備註
+                document.getElementById('medicineNotes').value = preset.notes;
+                
+                // 選擇時段
+                document.querySelectorAll('.time-slot-option').forEach(el => {
+                    const slot = el.dataset.slot;
+                    if (preset.timeSlots.includes(slot)) {
+                        el.classList.add('selected');
+                    } else {
+                        el.classList.remove('selected');
+                    }
+                });
+                
+                showToast(`✅ 已自動填入 ${recognizedMedicineName} 的預設資料`, 'success');
+            } else {
+                showToast('已填入識別結果，請檢查並完善其他信息', 'success');
+            }
+            
             // 如果有照片，也設置圖片預覽
             const img = document.getElementById('photoPreview');
             if (img.src) {
@@ -4080,8 +4224,6 @@
                 preview.src = img.src;
                 preview.style.display = 'block';
             }
-            
-            showToast('已填入識別結果，請檢查並完善其他信息', 'success');
         }
         
         // 重置拍照識別
