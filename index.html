@@ -909,10 +909,11 @@
             
             #aiView .input-area {
                 padding: 12px 16px;
+                bottom: 56px;
             }
             
             #aiView #chatMessages {
-                padding: 20px 16px 100px 16px;
+                padding: 20px 16px 120px 16px;
             }
         }
         
@@ -924,7 +925,7 @@
         #aiView #chatMessages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px 20px 100px 20px;
+            padding: 20px 20px 120px 20px;
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -939,7 +940,7 @@
             gap: 12px;
             align-items: center;
             position: fixed;
-            bottom: 0;
+            bottom: 56px;
             left: 0;
             right: 0;
             z-index: 1000;
@@ -4470,10 +4471,9 @@
         async function checkAIService() {
             console.log('[AI] 檢查服務可用性...');
             
-            // 顯示檢查狀態
+            // 隱藏狀態提示
             const statusDiv = document.getElementById('aiServiceStatus');
-            statusDiv.style.display = 'block';
-            statusDiv.innerHTML = '⚠️ 正在檢查 AI 服務...';
+            statusDiv.style.display = 'none';
             
             try {
                 // 直接測試 Gemini API（通過 CORS 代理）
@@ -4494,14 +4494,11 @@
                 if (testResponse.ok) {
                     isAIServiceAvailable = true;
                     document.getElementById('sendButton').disabled = false;
-                    statusDiv.style.display = 'none';
                     console.log('[AI] AI 服務可用');
                 } else {
                     // 即使 API 失敗，也啟用模擬模式
                     isAIServiceAvailable = true;
                     document.getElementById('sendButton').disabled = false;
-                    statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（API 密鑰可能有問題）';
-                    statusDiv.style.display = 'block';
                     console.log('[AI] 啟用模擬模式');
                 }
                 
@@ -4510,8 +4507,6 @@
                 // 即使連接失敗，也啟用模擬模式
                 isAIServiceAvailable = true;
                 document.getElementById('sendButton').disabled = false;
-                statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請檢查網路連接）';
-                statusDiv.style.display = 'block';
                 console.log('[AI] 啟用模擬模式');
             }
         }
