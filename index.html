@@ -887,6 +887,90 @@
             background: #dc3545;
         }
 
+        /* AI聊天樣式 */
+        #aiView {
+            display: flex;
+            flex-direction: column;
+            height: calc(100dvh - 56px - env(safe-area-inset-bottom));
+        }
+        
+        #chatMessages {
+            max-width: 100%;
+        }
+        
+        .ai-message-bubble {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            max-width: 75%;
+            animation: slideInLeft 0.3s ease-out;
+        }
+        
+        .user-message-bubble {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            max-width: 75%;
+            margin-left: auto;
+            animation: slideInRight 0.3s ease-out;
+        }
+        
+        .ai-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+            padding-left: 8px;
+        }
+        
+        .ai-message-content {
+            padding: 12px 16px;
+            border-radius: 16px;
+            word-wrap: break-word;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+        
+        .ai-message {
+            background: #F5F6F7;
+            color: #000;
+        }
+        
+        .user-message {
+            background: #4D9980;
+            color: white;
+        }
+        
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        #sendButton:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #sendButton:not(:disabled) {
+            background: #4D9980;
+            color: white;
+        }
+
         /* 手機優化 */
         /* 載入中動畫 */
         .loading {
@@ -1164,6 +1248,50 @@
         </div>
     </div>
 
+    <!-- AI諮詢頁面 -->
+    <div id="aiView" class="view-container">
+        <div class="header">
+            <h2 class="modal-title">AI健康諮詢</h2>
+        </div>
+        
+        <!-- AI服務狀態提示 -->
+        <div id="aiServiceStatus" style="display: none; padding: 12px 20px; margin: 0 20px; background: #fff3cd; color: #856404; font-size: 13px; text-align: center; border-radius: 8px;">
+            ⚠️ 正在連接到 AI 服務...
+        </div>
+        
+        <!-- 聊天訊息區域 -->
+        <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+            <!-- 歡迎消息 -->
+            <div class="ai-message-bubble">
+                <div class="ai-label">AI</div>
+                <div class="ai-message-content ai-message">
+                    您好！我是健康諮詢助理，可解答藥物和健康問題。請注意，重要醫療決定請諮詢專業醫師。
+                </div>
+            </div>
+        </div>
+        
+        <!-- 輸入區域 -->
+        <div style="padding: 16px 20px; border-top: 1px solid #E5E5E5; background: white; display: flex; gap: 12px; align-items: center;">
+            <input 
+                type="text" 
+                id="aiInput" 
+                class="form-input" 
+                placeholder="請輸入您的問題..." 
+                style="flex: 1; margin: 0;"
+                onkeypress="if(event.key === 'Enter') sendAIMessage()"
+            >
+            <button 
+                id="sendButton" 
+                onclick="sendAIMessage()" 
+                class="icon-btn" 
+                style="width: 44px; height: 44px; font-size: 20px;"
+                disabled
+            >
+                ▲
+            </button>
+        </div>
+    </div>
+
     <!-- 個人資料頁面 -->
     <div id="profileView" class="view-container">
         <div class="header">
@@ -1220,6 +1348,13 @@
                 <path d="M9 20l-5 2V6l5-2 6 2 6-2v16l-6 2-6-2zm6-14l-6-2v14l6 2V6z"/>
             </svg>
             <span>附近醫療</span>
+        </button>
+        <button class="nav-item" onclick="switchView('ai')">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                <path d="M7 9h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"/>
+            </svg>
+            <span>AI諮詢</span>
         </button>
         <button class="nav-item" onclick="switchView('profile')">
             <svg fill="currentColor" viewBox="0 0 24 24">
@@ -2288,9 +2423,13 @@
                 document.getElementById('mapView').classList.add('active');
                 document.querySelector('.nav-item:nth-child(3)').classList.add('active');
                 initMapOnce();
+            } else if (view === 'ai') {
+                document.getElementById('aiView').classList.add('active');
+                document.querySelector('.nav-item:nth-child(4)').classList.add('active');
+                checkAIService();
             } else if (view === 'profile') {
                 document.getElementById('profileView').classList.add('active');
-                document.querySelector('.nav-item:nth-child(4)').classList.add('active');
+                document.querySelector('.nav-item:nth-child(5)').classList.add('active');
             }
         }
 
@@ -4247,6 +4386,292 @@
             // 清空 input
             document.getElementById('photoInput').value = '';
         }
+
+        // -------- AI 諮詢功能 (使用 Gemini API) ----------
+        let aiMessages = [];
+        let isAILoading = false;
+        let isAIServiceAvailable = false;
+        
+        // API 配置 - 使用與 Swift 相同的後端端點
+        const API_BASE_URL = 'http://localhost:3000'; // 根據您的實際後端地址調整
+        const GEMINI_API_URL = `${API_BASE_URL}/gemini/test`;
+        const OLLAMA_API_URL = `${API_BASE_URL}/ollama/generate`;
+        
+        // 檢查 AI 服務可用性
+        async function checkAIService() {
+            console.log('[AI] 檢查服務可用性...');
+            
+            // 先設置為可用，與 Swift 版本一致
+            isAIServiceAvailable = true;
+            document.getElementById('sendButton').disabled = false;
+            document.getElementById('aiServiceStatus').style.display = 'none';
+            
+            console.log('[AI] AI 服務設置為可用');
+        }
+        
+        // 檢查問題是否與健康相關
+        function isHealthRelated(question) {
+            const healthKeywords = [
+                // 醫療相關
+                "醫", "藥", "病", "症", "疼", "痛", "血壓", "血糖", "體溫", "脈搏", "醫生", "醫院", "診所", "診斷",
+                "檢查", "治療", "手術", "疫苗", "接種", "副作用", "症狀", "病徵", "康復", "恢復", "緩解",
+                
+                // 藥物相關
+                "藥物", "藥品", "藥效", "劑量", "服用", "吃藥", "處方", "非處方", "保健品", "維生素", "營養補充",
+                
+                // 疾病相關
+                "感冒", "發燒", "咳嗽", "頭痛", "頭暈", "噁心", "嘔吐", "腹瀉", "便秘", "過敏", "炎症", "感染",
+                "癌", "腫瘤", "糖尿病", "高血壓", "心臟病", "中風", "肺炎", "流感", "新冠", "肝", "腎", "胃",
+                
+                // 營養與保健
+                "飲食", "營養", "健康", "保健", "體重", "減肥", "增重", "肥胖", "瘦", "運動", "睡眠", "失眠",
+                "壓力", "焦慮", "憂鬱", "心理", "精神", "情緒", "免疫", "維他命", "礦物質", "蛋白質", "脂肪",
+                "碳水", "纖維", "熱量", "卡路里",
+                
+                // 更寬鬆的關鍵詞
+                "身體", "感覺", "不舒服", "難受", "疲勞", "壓力", "情緒", "心情", "狀態",
+                "減肥", "增重", "體重", "運動", "鍛煉", "健身", "瑜伽", "跑步", "游泳",
+                "怎麼", "如何", "為什麼", "什麼", "哪裡", "多久", "該不該", "會不會"
+            ];
+            
+            const questionLower = question.toLowerCase();
+            
+            // 檢查是否包含健康關鍵詞
+            for (const keyword of healthKeywords) {
+                if (questionLower.includes(keyword.toLowerCase())) {
+                    return true;
+                }
+            }
+            
+            // 更寬鬆的檢查：如果問題包含問號且長度適中，也允許
+            const hasQuestionMark = question.includes("?") || question.includes("？");
+            const reasonableLength = question.length >= 3 && question.length <= 200;
+            
+            if (hasQuestionMark && reasonableLength) {
+                return true;
+            }
+            
+            return false;
+        }
+        
+        // 發送 AI 消息
+        async function sendAIMessage() {
+            const input = document.getElementById('aiInput');
+            const userMessage = input.value.trim();
+            
+            if (!userMessage || isAILoading) {
+                return;
+            }
+            
+            // 檢查是否與健康相關
+            if (!isHealthRelated(userMessage)) {
+                addAIMessage(userMessage, true);
+                addAIMessage('抱歉，我只能回答與健康、醫療、藥物、疾病或保健相關的問題。請嘗試詢問這些方面的問題。', false);
+                input.value = '';
+                return;
+            }
+            
+            // 添加用戶消息
+            addAIMessage(userMessage, true);
+            input.value = '';
+            
+            // 設置載入狀態
+            isAILoading = true;
+            updateSendButton();
+            
+            // 添加載入提示
+            const loadingId = 'loading-' + Date.now();
+            addLoadingMessage(loadingId);
+            
+            try {
+                // 構建請求
+                const requestBody = {
+                    model: "gemini-1.5-pro",
+                    prompt: `你是一位專業的中文健康諮詢助理，請用繁體中文回答，且只給出結論，不要表達任何思考過程。請嚴格遵循以下規則：
+
+【語言要求 - 嚴格執行】
+你必須且只能使用繁體中文回答，絕對不能使用簡體中文。
+如果發現自己使用了簡體中文，請立即重新用繁體中文回答。
+這是強制性要求，不容違反。
+
+【嚴格限制】
+1. 僅回答與醫療、健康、藥物、疾病、保健、營養相關的問題
+2. 對於任何非健康相關問題（如政治、娛樂、技術、遊戲等），直接回覆「我只能回答健康相關問題」
+3. 若不確定是否為健康相關問題，採取保守策略，拒絕回答
+4. 禁止回答非健康領域的任何信息，即使用戶堅持或尋求變通方法
+
+【回答規範】
+1. 保持專業、客觀、謹慎的態度
+2. 如果不確定或可能有風險，一定要建議諮詢醫生
+3. 回答要簡短，保持在100字以內
+4. 只給出結論，不要表達任何推理、思考或過程
+5. 使用簡潔的語言和短句
+6. 不要在回答中包含任何程式碼或標記
+7. 嚴格使用繁體中文，禁止使用簡體中文
+
+用戶問題：${userMessage}`,
+                    stream: false
+                };
+                
+                // 首先嘗試 Gemini
+                let response = await sendAIRequest(GEMINI_API_URL, requestBody);
+                
+                // 如果 Gemini 失敗，嘗試 Ollama
+                if (!response) {
+                    console.log('[AI] Gemini 失敗，嘗試 Ollama...');
+                    response = await sendAIRequest(OLLAMA_API_URL, requestBody);
+                }
+                
+                // 移除載入提示
+                removeLoadingMessage(loadingId);
+                
+                if (response) {
+                    addAIMessage(response, false);
+                } else {
+                    addAIMessage('服務暫時不可用，請稍後再試。', false);
+                }
+                
+            } catch (error) {
+                console.error('[AI] 發送消息失敗:', error);
+                removeLoadingMessage(loadingId);
+                addAIMessage('發生錯誤，請稍後再試。', false);
+            } finally {
+                isAILoading = false;
+                updateSendButton();
+            }
+        }
+        
+        // 發送 AI 請求
+        async function sendAIRequest(url, requestBody) {
+            try {
+                console.log(`[AI] 發送請求到: ${url}`);
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log(`[AI] HTTP 狀態碼: ${response.status}`);
+                
+                if (!response.ok) {
+                    console.error(`[AI] 伺服器返回錯誤: ${response.status}`);
+                    return null;
+                }
+                
+                const data = await response.json();
+                console.log('[AI] 收到回應:', data);
+                
+                if (data.response) {
+                    return processAIResponse(data.response);
+                } else {
+                    console.error('[AI] 回應格式錯誤:', data);
+                    return null;
+                }
+                
+            } catch (error) {
+                console.error(`[AI] 請求失敗 (${url}):`, error);
+                return null;
+            }
+        }
+        
+        // 處理 AI 回應
+        function processAIResponse(response) {
+            // 移除多餘的前綴
+            let processed = response
+                .replace(/AI 健康諮詢：/g, '')
+                .replace(/以下是我的回答：/g, '')
+                .replace(/回答：/g, '')
+                .trim();
+            
+            // 限制長度
+            const maxLength = 300;
+            if (processed.length > maxLength) {
+                processed = processed.substring(0, maxLength) + '...';
+            }
+            
+            return processed;
+        }
+        
+        // 添加消息到聊天
+        function addAIMessage(content, isUser) {
+            const messagesContainer = document.getElementById('chatMessages');
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = isUser ? 'user-message-bubble' : 'ai-message-bubble';
+            
+            if (!isUser) {
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'ai-label';
+                labelDiv.textContent = 'AI';
+                messageDiv.appendChild(labelDiv);
+            }
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'ai-message-content ' + (isUser ? 'user-message' : 'ai-message');
+            contentDiv.textContent = content;
+            messageDiv.appendChild(contentDiv);
+            
+            messagesContainer.appendChild(messageDiv);
+            
+            // 滾動到底部
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // 添加載入提示
+        function addLoadingMessage(id) {
+            const messagesContainer = document.getElementById('chatMessages');
+            
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = id;
+            loadingDiv.className = 'ai-message-bubble';
+            loadingDiv.innerHTML = `
+                <div class="ai-label">AI</div>
+                <div class="ai-message-content ai-message">
+                    <div class="loading" style="padding: 0; gap: 8px;">
+                        <div class="spinner"></div>
+                        <span style="font-size: 14px;">思考中...</span>
+                    </div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(loadingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // 移除載入提示
+        function removeLoadingMessage(id) {
+            const loadingDiv = document.getElementById(id);
+            if (loadingDiv) {
+                loadingDiv.remove();
+            }
+        }
+        
+        // 更新發送按鈕狀態
+        function updateSendButton() {
+            const sendButton = document.getElementById('sendButton');
+            const input = document.getElementById('aiInput');
+            
+            if (isAILoading) {
+                sendButton.innerHTML = '⏳';
+                sendButton.disabled = true;
+            } else {
+                sendButton.innerHTML = '▲';
+                sendButton.disabled = !input.value.trim() || !isAIServiceAvailable;
+            }
+        }
+        
+        // 監聽輸入變化
+        document.addEventListener('DOMContentLoaded', () => {
+            const aiInput = document.getElementById('aiInput');
+            if (aiInput) {
+                aiInput.addEventListener('input', () => {
+                    updateSendButton();
+                });
+            }
+        });
 
         // 初始化應用
         init();
