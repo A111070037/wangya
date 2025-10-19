@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>測試藥品識別模型</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #4D9980;
+            text-align: center;
+        }
+        .upload-area {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .upload-area:hover {
+            border-color: #4D9980;
+            background: #f9f9f9;
+        }
+        .preview-img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 20px;
+            background: #e8f5e9;
+            border-radius: 8px;
+        }
+        .result h3 {
+            color: #2e7d32;
+            margin-top: 0;
+        }
+        .confidence {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4D9980;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        button {
+            background: #4D9980;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #3D7A65;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .predictions {
+            margin-top: 15px;
+        }
+        .prediction-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 測試藥品識別模型</h1>
+        
+        <div class="status" id="status">
+            <div id="loading">正在載入模型...</div>
+        </div>
+        
+        <input type="file" id="fileInput" accept="image/*" style="display: none;" onchange="handleFile(event)">
+        
+        <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+            <div style="font-size: 60px;">📷</div>
+            <div style="font-size: 18px; margin-top: 10px;">點擊上傳藥品照片</div>
+            <div style="font-size: 14px; color: #999; margin-top: 5px;">支持 JPG, PNG 格式</div>
+        </div>
+        
+        <img id="preview" class="preview-img" style="display: none;">
+        
+        <button id="recognizeBtn" onclick="recognizeImage()" style="display: none;">
+            🔍 開始識別
+        </button>
+        
+        <div id="result" style="display: none;"></div>
+    </div>
+
+    <!-- TensorFlow.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    
+    <script>
+        let model = null;
+        let currentImage = null;
+        
+        // 載入模型
+        async function loadModel() {
+            try {
+                console.log('🔄 開始載入自定義模型...');
+                const modelPath = './tfjs_model/model.json';
+                
+                model = await tf.loadLayersModel(modelPath);
+                console.log('✅ 模型載入成功！');
+                console.log('模型輸入形狀:', model.inputs[0].shape);
+                console.log('模型輸出形狀:', model.outputs[0].shape);
+                
+                document.getElementById('status').innerHTML = 
+                    '<div style="color: #4D9980; font-weight: bold;">✅ 模型已就緒，請上傳藥品照片</div>';
+                
+                return true;
+            } catch (error) {
+                console.error('❌ 模型載入失敗:', error);
+                document.getElementById('status').innerHTML = 
+                    '<div style="color: #dc3545;">❌ 模型載入失敗: ' + error.message + '</div>';
+                return false;
+            }
+        }
+        
+        // 處理文件上傳
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('preview');
+                img.src = e.target.result;
+                img.style.display = 'block';
+                
+                currentImage = img;
+                
+                document.getElementById('recognizeBtn').style.display = 'block';
+                document.getElementById('result').style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 識別圖片
+        async function recognizeImage() {
+            if (!currentImage || !model) {
+                alert('請先上傳照片並確保模型已載入');
+                return;
+            }
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = '<div class="status">⏳ 正在識別...</div>';
+            
+            try {
+                // 預處理圖片
+                const tensor = tf.browser.fromPixels(currentImage)
+                    .resizeNearestNeighbor([224, 224])  // 根據 metadata.json 中的 imageSize
+                    .toFloat()
+                    .div(tf.scalar(255.0))
+                    .expandDims();
+                
+                console.log('輸入張量形狀:', tensor.shape);
+                
+                // 執行預測
+                const predictions = await model.predict(tensor).data();
+                
+                // 清理張量
+                tensor.dispose();
+                
+                // 從 metadata.json 讀取的標籤
+                const labels = ['甲狀腺藥物', '若元腸胃錠', '維他命Ｂ', '維他命Ｃ'];
+                
+                // 轉換為結果數組
+                const results = [];
+                predictions.forEach((prob, index) => {
+                    if (labels[index]) {
+                        results.push({
+                            className: labels[index],
+                            probability: prob
+                        });
+                    }
+                });
+                
+                // 按概率排序
+                results.sort((a, b) => b.probability - a.probability);
+                
+                console.log('識別結果:', results);
+                
+                // 顯示結果
+                const topResult = results[0];
+                
+                let html = `
+                    <div class="result">
+                        <h3>🎯 識別結果</h3>
+                        <div style="font-size: 24px; font-weight: bold; color: #2e7d32; margin: 15px 0;">
+                            ${topResult.className}
+                        </div>
+                        <div class="confidence">
+                            可信度: ${(topResult.probability * 100).toFixed(1)}%
+                        </div>
+                        
+                        <div class="predictions">
+                            <h4>所有預測結果：</h4>
+                `;
+                
+                results.forEach(r => {
+                    const percent = (r.probability * 100).toFixed(1);
+                    const barWidth = r.probability * 100;
+                    html += `
+                        <div class="prediction-item">
+                            <span>${r.className}</span>
+                            <span style="font-weight: bold;">${percent}%</span>
+                        </div>
+                        <div style="background: #e0e0e0; height: 6px; border-radius: 3px; margin-bottom: 10px;">
+                            <div style="background: #4D9980; height: 100%; width: ${barWidth}%; border-radius: 3px;"></div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div></div>';
+                
+                resultDiv.innerHTML = html;
+                
+            } catch (error) {
+                console.error('識別錯誤:', error);
+                resultDiv.innerHTML = `
+                    <div style="color: #dc3545; padding: 20px; text-align: center;">
+                        ❌ 識別失敗: ${error.message}
+                    </div>
+                `;
+            }
+        }
+        
+        // 頁面載入時執行
+        window.onload = function() {
+            loadModel();
+        };
+    </script>
+</body>
+</html>
+
