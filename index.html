@@ -981,10 +981,13 @@
         <div class="medicine-list" id="medicineList"></div>
 
         <div class="bottom-actions">
-            <button class="fab" onclick="showAddMedicine()" title="添加藥品">
+            <button class="fab" onclick="showAddMedicine()" title="添加藥品" style="margin-right: 16px;">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 26px; height: 26px;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
+            </button>
+            <button class="fab" onclick="showPhotoRecognition()" title="拍照識別" style="background: #ff9800;">
+                📷
             </button>
         </div>
     </div>
@@ -1454,6 +1457,84 @@
         </div>
     </div>
 
+    <!-- 拍照識別模態窗口 -->
+    <div id="photoRecognitionModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">藥品照片識別</h3>
+                <button class="close-btn" onclick="closeModal('photoRecognitionModal')">×</button>
+            </div>
+            
+            <!-- 照片顯示區域 -->
+            <div class="form-group">
+                <div id="photoPreviewContainer" style="position: relative; width: 100%; max-width: 300px; height: 300px; margin: 0 auto; background: #f5f5f5; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    <div id="photoPlaceholder" style="text-align: center; color: #999;">
+                        <div style="font-size: 60px; margin-bottom: 10px;">📷</div>
+                        <div>點擊拍照或上傳照片</div>
+                        <div style="font-size: 12px; margin-top: 5px;">照片將自動裁剪為正方形</div>
+                    </div>
+                    <img id="photoPreview" style="display: none; width: 100%; height: 100%; object-fit: cover;">
+                    <canvas id="photoCanvas" style="display: none;"></canvas>
+                </div>
+            </div>
+            
+            <!-- 拍照/上傳按鈕 -->
+            <div class="form-group">
+                <input type="file" id="photoInput" accept="image/*" capture="environment" style="display: none;" onchange="handlePhotoUpload(event)">
+                
+                <button class="btn-primary" onclick="document.getElementById('photoInput').click()" id="uploadPhotoBtn">
+                    <span style="margin-right: 8px;">📷</span>
+                    <span>拍攝或上傳照片</span>
+                </button>
+                
+                <button class="btn-primary" onclick="recognizePhoto()" id="recognizePhotoBtn" style="display: none; margin-top: 12px;">
+                    <span style="margin-right: 8px;">🔍</span>
+                    <span>開始識別</span>
+                </button>
+                
+                <button class="btn-danger" onclick="resetPhotoRecognition()" id="resetPhotoBtn" style="display: none; margin-top: 12px;">
+                    <span style="margin-right: 8px;">🔄</span>
+                    <span>重新拍照</span>
+                </button>
+            </div>
+            
+            <!-- 識別進度 -->
+            <div id="recognitionProgress" style="display: none; text-align: center; padding: 20px;">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <span id="recognitionStatus">正在載入模型...</span>
+                </div>
+                <div style="margin-top: 10px; font-size: 14px; color: #666;">
+                    <span id="recognitionConfidence"></span>
+                </div>
+            </div>
+            
+            <!-- 識別結果 -->
+            <div id="recognitionResult" style="display: none;">
+                <div class="form-group">
+                    <label class="form-label">識別結果</label>
+                    <div style="background: #e8f5e9; padding: 16px; border-radius: 8px; margin-bottom: 12px;">
+                        <div style="font-size: 18px; font-weight: 600; color: #2e7d32; margin-bottom: 8px;">
+                            <span id="recognizedName">藥品名稱</span>
+                        </div>
+                        <div style="font-size: 14px; color: #666;">
+                            可信度: <span id="recognizedConfidence">95%</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn-primary" onclick="useRecognitionResult()" style="flex: 1;">
+                        使用此結果
+                    </button>
+                    <button class="btn-danger" onclick="resetPhotoRecognition()" style="flex: 1;">
+                        重新識別
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Leaflet for map (no API key) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1461,6 +1542,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- html2pdf (包含 html2canvas + jsPDF) 用於正確顯示繁體中文 -->
     <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
+    <!-- TensorFlow.js for image recognition -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.0"></script>
 
     <script>
         // 數據結構
@@ -3767,6 +3851,259 @@
 
         function escapeHtml(str) {
             return String(str || '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+        }
+
+        // -------- Photo Recognition (TensorFlow.js) ----------
+        let tfModel = null; // TensorFlow.js 模型
+        let customModel = null; // 自定義模型（如果有）
+        let isModelLoaded = false;
+        let currentPhotoFile = null;
+        let recognizedMedicineName = '';
+        let recognizedConfidence = 0;
+        
+        // 藥品名稱映射（將通用識別結果轉換為藥品名稱）
+        const medicineNameMapping = {
+            'pill': '藥丸',
+            'tablet': '藥片',
+            'capsule': '膠囊',
+            'bottle': '藥瓶',
+            'medicine': '藥品',
+            'drug': '藥物',
+            // 可以添加更多映射
+        };
+        
+        // 載入 TensorFlow.js 模型
+        async function loadTensorFlowModel() {
+            try {
+                console.log('🔄 開始載入 TensorFlow.js 模型...');
+                
+                // 方法 1: 嘗試載入自定義模型（如果已轉換）
+                try {
+                    const customModelPath = './tfjs_model/model.json';
+                    const response = await fetch(customModelPath);
+                    if (response.ok) {
+                        customModel = await tf.loadLayersModel(customModelPath);
+                        console.log('✅ 自定義模型載入成功');
+                        isModelLoaded = true;
+                        return true;
+                    }
+                } catch (e) {
+                    console.log('ℹ️ 未找到自定義模型，使用通用模型');
+                }
+                
+                // 方法 2: 使用 MobileNet 預訓練模型
+                console.log('🔄 載入 MobileNet 模型...');
+                tfModel = await mobilenet.load();
+                console.log('✅ MobileNet 模型載入成功');
+                isModelLoaded = true;
+                return true;
+                
+            } catch (error) {
+                console.error('❌ 模型載入失敗:', error);
+                showToast('模型載入失敗，請檢查網絡連接', 'error');
+                return false;
+            }
+        }
+        
+        // 顯示拍照識別窗口
+        function showPhotoRecognition() {
+            showModal('photoRecognitionModal');
+            
+            // 預載模型
+            if (!isModelLoaded) {
+                loadTensorFlowModel();
+            }
+        }
+        
+        // 處理照片上傳
+        function handlePhotoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            currentPhotoFile = file;
+            
+            // 讀取並顯示照片
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = document.getElementById('photoPreview');
+                const placeholder = document.getElementById('photoPlaceholder');
+                
+                img.src = e.target.result;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                
+                // 顯示識別按鈕
+                document.getElementById('uploadPhotoBtn').style.display = 'none';
+                document.getElementById('recognizePhotoBtn').style.display = 'block';
+                document.getElementById('resetPhotoBtn').style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // 識別照片
+        async function recognizePhoto() {
+            if (!currentPhotoFile) {
+                showToast('請先上傳照片', 'error');
+                return;
+            }
+            
+            // 顯示進度
+            document.getElementById('recognizePhotoBtn').style.display = 'none';
+            document.getElementById('resetPhotoBtn').style.display = 'none';
+            document.getElementById('recognitionProgress').style.display = 'block';
+            document.getElementById('recognitionResult').style.display = 'none';
+            
+            try {
+                // 確保模型已載入
+                if (!isModelLoaded) {
+                    document.getElementById('recognitionStatus').textContent = '正在載入模型...';
+                    const loaded = await loadTensorFlowModel();
+                    if (!loaded) {
+                        throw new Error('模型載入失敗');
+                    }
+                }
+                
+                document.getElementById('recognitionStatus').textContent = '正在識別藥品...';
+                
+                // 取得圖片元素
+                const img = document.getElementById('photoPreview');
+                
+                let predictions = [];
+                
+                // 使用對應的模型進行識別
+                if (customModel) {
+                    // 使用自定義模型
+                    predictions = await recognizeWithCustomModel(img);
+                } else if (tfModel) {
+                    // 使用 MobileNet 模型
+                    predictions = await tfModel.classify(img);
+                }
+                
+                console.log('識別結果:', predictions);
+                
+                if (predictions && predictions.length > 0) {
+                    // 取得最可能的結果
+                    const topResult = predictions[0];
+                    recognizedMedicineName = translateToMedicineName(topResult.className);
+                    recognizedConfidence = topResult.probability;
+                    
+                    // 顯示結果
+                    document.getElementById('recognitionProgress').style.display = 'none';
+                    document.getElementById('recognitionResult').style.display = 'block';
+                    document.getElementById('recognizedName').textContent = recognizedMedicineName;
+                    document.getElementById('recognizedConfidence').textContent = 
+                        (recognizedConfidence * 100).toFixed(1) + '%';
+                    
+                    // 如果可信度較低，顯示提示
+                    if (recognizedConfidence < 0.5) {
+                        document.getElementById('recognitionConfidence').textContent = 
+                            (recognizedConfidence * 100).toFixed(1) + '% (可信度較低，建議手動輸入)';
+                    }
+                } else {
+                    throw new Error('無法識別此藥品');
+                }
+                
+            } catch (error) {
+                console.error('識別錯誤:', error);
+                document.getElementById('recognitionProgress').style.display = 'none';
+                document.getElementById('recognizePhotoBtn').style.display = 'block';
+                document.getElementById('resetPhotoBtn').style.display = 'block';
+                showToast('識別失敗: ' + error.message, 'error');
+            }
+        }
+        
+        // 使用自定義模型識別
+        async function recognizeWithCustomModel(img) {
+            // 預處理圖片
+            const tensor = tf.browser.fromPixels(img)
+                .resizeNearestNeighbor([224, 224]) // 根據你的模型輸入尺寸調整
+                .toFloat()
+                .div(tf.scalar(255.0))
+                .expandDims();
+            
+            // 執行預測
+            const predictions = await customModel.predict(tensor).data();
+            
+            // 清理張量
+            tensor.dispose();
+            
+            // 轉換為標準格式
+            // 注意：這裡需要根據你的模型輸出格式調整
+            const result = [];
+            const labels = ['藥品A', '藥品B', '藥品C']; // 替換為你的實際標籤
+            
+            predictions.forEach((prob, index) => {
+                if (labels[index]) {
+                    result.push({
+                        className: labels[index],
+                        probability: prob
+                    });
+                }
+            });
+            
+            // 按概率排序
+            result.sort((a, b) => b.probability - a.probability);
+            
+            return result;
+        }
+        
+        // 將通用識別結果轉換為藥品名稱
+        function translateToMedicineName(className) {
+            const lowerClassName = className.toLowerCase();
+            
+            // 檢查是否有直接映射
+            for (const [key, value] of Object.entries(medicineNameMapping)) {
+                if (lowerClassName.includes(key)) {
+                    return value;
+                }
+            }
+            
+            // 如果沒有映射，提供一個建議
+            return '藥品 (' + className + ')';
+        }
+        
+        // 使用識別結果
+        function useRecognitionResult() {
+            // 關閉識別窗口
+            closeModal('photoRecognitionModal');
+            
+            // 打開添加藥品窗口，並填入識別結果
+            showAddMedicine();
+            
+            // 填入藥品名稱
+            document.getElementById('medicineName').value = recognizedMedicineName;
+            
+            // 如果有照片，也設置圖片預覽
+            const img = document.getElementById('photoPreview');
+            if (img.src) {
+                const preview = document.getElementById('imagePreview');
+                preview.src = img.src;
+                preview.style.display = 'block';
+            }
+            
+            showToast('已填入識別結果，請檢查並完善其他信息', 'success');
+        }
+        
+        // 重置拍照識別
+        function resetPhotoRecognition() {
+            // 清空照片
+            currentPhotoFile = null;
+            const img = document.getElementById('photoPreview');
+            const placeholder = document.getElementById('photoPlaceholder');
+            
+            img.src = '';
+            img.style.display = 'none';
+            placeholder.style.display = 'block';
+            
+            // 重置按鈕狀態
+            document.getElementById('uploadPhotoBtn').style.display = 'block';
+            document.getElementById('recognizePhotoBtn').style.display = 'none';
+            document.getElementById('resetPhotoBtn').style.display = 'none';
+            document.getElementById('recognitionProgress').style.display = 'none';
+            document.getElementById('recognitionResult').style.display = 'none';
+            
+            // 清空 input
+            document.getElementById('photoInput').value = '';
         }
 
         // 初始化應用
