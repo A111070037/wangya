@@ -986,7 +986,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
                 </svg>
             </button>
-            <button class="fab" onclick="showPhotoRecognition()" title="拍照識別" style="background: #ff9800;">
+            <button class="fab" onclick="showPhotoRecognition()" title="拍照識別">
                 📷
             </button>
         </div>
@@ -1524,10 +1524,10 @@
                 </div>
                 
                 <div style="display: flex; gap: 12px;">
-                    <button class="btn-primary" onclick="useRecognitionResult()" style="flex: 1;">
+                    <button class="btn-primary" onclick="useRecognitionResult()" style="flex: 1; padding: 16px; font-size: 16px;">
                         使用此結果
                     </button>
-                    <button class="btn-danger" onclick="resetPhotoRecognition()" style="flex: 1;">
+                    <button onclick="resetPhotoRecognition()" style="flex: 1; padding: 16px; background: #f5f5f5; color: #666; border: none; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
                         重新識別
                     </button>
                 </div>
