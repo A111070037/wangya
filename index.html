@@ -901,6 +901,13 @@
             overflow: hidden;
         }
         
+        /* 確保輸入框在移動設備上正確顯示 */
+        @media (max-width: 768px) {
+            #aiView {
+                height: calc(100vh - 56px);
+            }
+        }
+        
         #aiView .header {
             flex-shrink: 0;
             z-index: 10;
@@ -909,7 +916,7 @@
         #aiView #chatMessages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
+            padding: 20px 20px 80px 20px;
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -923,6 +930,9 @@
             display: flex;
             gap: 12px;
             align-items: center;
+            position: sticky;
+            bottom: 0;
+            z-index: 100;
         }
         
         
