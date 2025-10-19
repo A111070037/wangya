@@ -1796,6 +1796,9 @@
             changeHealthType(currentHealthType);
             // 地圖預設濾鏡
             mapFilter = localStorage.getItem('mapFilter') || 'pharmacy';
+            
+            // 確保只有主頁面顯示
+            switchView('medicines');
         }
 
         // 載入數據
@@ -2403,32 +2406,41 @@
 
         // 切換視圖
         function switchView(view) {
+            // 隱藏所有視圖
             document.querySelectorAll('.view-container').forEach(el => {
                 el.classList.remove('active');
+                el.style.display = 'none';
             });
             
+            // 移除所有導航項的active狀態
             document.querySelectorAll('.nav-item').forEach(el => {
                 el.classList.remove('active');
             });
 
+            // 顯示對應的視圖
             if (view === 'medicines') {
                 document.getElementById('medicinesView').classList.add('active');
+                document.getElementById('medicinesView').style.display = 'block';
                 document.querySelector('.nav-item:nth-child(1)').classList.add('active');
             } else if (view === 'health') {
                 document.getElementById('healthView').classList.add('active');
+                document.getElementById('healthView').style.display = 'block';
                 document.querySelector('.nav-item:nth-child(2)').classList.add('active');
                 renderHealthRecords();
                 updateChart();
             } else if (view === 'map') {
                 document.getElementById('mapView').classList.add('active');
+                document.getElementById('mapView').style.display = 'block';
                 document.querySelector('.nav-item:nth-child(3)').classList.add('active');
                 initMapOnce();
             } else if (view === 'ai') {
                 document.getElementById('aiView').classList.add('active');
+                document.getElementById('aiView').style.display = 'block';
                 document.querySelector('.nav-item:nth-child(4)').classList.add('active');
                 checkAIService();
             } else if (view === 'profile') {
                 document.getElementById('profileView').classList.add('active');
+                document.getElementById('profileView').style.display = 'block';
                 document.querySelector('.nav-item:nth-child(5)').classList.add('active');
             }
         }
@@ -4394,19 +4406,55 @@
         
         // API 配置 - 使用與 Swift 相同的後端端點
         const API_BASE_URL = 'http://localhost:3000'; // 根據您的實際後端地址調整
-        const GEMINI_API_URL = `${API_BASE_URL}/gemini/test`;
-        const OLLAMA_API_URL = `${API_BASE_URL}/ollama/generate`;
+        const GEMINI_API_URL = `${API_BASE_URL}/api/gemini/test`;
+        const OLLAMA_API_URL = `${API_BASE_URL}/api/ollama/generate`;
         
         // 檢查 AI 服務可用性
         async function checkAIService() {
             console.log('[AI] 檢查服務可用性...');
             
-            // 先設置為可用，與 Swift 版本一致
-            isAIServiceAvailable = true;
-            document.getElementById('sendButton').disabled = false;
-            document.getElementById('aiServiceStatus').style.display = 'none';
+            // 顯示檢查狀態
+            const statusDiv = document.getElementById('aiServiceStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '⚠️ 正在檢查 AI 服務...';
             
-            console.log('[AI] AI 服務設置為可用');
+            try {
+                // 嘗試發送測試請求
+                const testResponse = await fetch(`${API_BASE_URL}/api/gemini/test`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: "gemini-1.5-pro",
+                        prompt: "測試連接",
+                        stream: false
+                    })
+                });
+                
+                if (testResponse.ok) {
+                    isAIServiceAvailable = true;
+                    document.getElementById('sendButton').disabled = false;
+                    statusDiv.style.display = 'none';
+                    console.log('[AI] AI 服務可用');
+                } else {
+                    // 即使 API 失敗，也啟用模擬模式
+                    isAIServiceAvailable = true;
+                    document.getElementById('sendButton').disabled = false;
+                    statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請設置 Gemini API 密鑰以使用完整功能）';
+                    statusDiv.style.display = 'block';
+                    console.log('[AI] 啟用模擬模式');
+                }
+                
+            } catch (error) {
+                console.error('[AI] 服務檢查失敗:', error);
+                // 即使連接失敗，也啟用模擬模式
+                isAIServiceAvailable = true;
+                document.getElementById('sendButton').disabled = false;
+                statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請檢查後端服務和 API 密鑰設置）';
+                statusDiv.style.display = 'block';
+                console.log('[AI] 啟用模擬模式');
+            }
         }
         
         // 檢查問題是否與健康相關
@@ -4522,6 +4570,12 @@
                     response = await sendAIRequest(OLLAMA_API_URL, requestBody);
                 }
                 
+                // 如果都失敗，使用模擬回應
+                if (!response) {
+                    console.log('[AI] 使用模擬回應');
+                    response = getMockAIResponse(userMessage);
+                }
+                
                 // 移除載入提示
                 removeLoadingMessage(loadingId);
                 
@@ -4593,6 +4647,30 @@
             }
             
             return processed;
+        }
+        
+        // 模擬 AI 回應
+        function getMockAIResponse(question) {
+            const responses = {
+                '感冒': '感冒時建議多休息、多喝水，可以服用維他命C增強免疫力。如果症狀嚴重或持續超過一週，請諮詢醫生。',
+                '頭痛': '頭痛可能由多種原因引起，建議先休息並避免強光。如果頭痛持續或劇烈，請及時就醫檢查。',
+                '發燒': '發燒時要多喝水、多休息，可以用溫水擦拭身體降溫。如果體溫超過38.5°C或持續發燒，請就醫治療。',
+                '胃痛': '胃痛時建議避免刺激性食物，可以喝溫水或薑茶緩解。如果疼痛劇烈或持續，請諮詢消化科醫生。',
+                '失眠': '失眠時建議保持規律作息，睡前避免使用電子設備，可以嘗試冥想或輕柔音樂幫助入睡。',
+                '減肥': '健康減肥需要均衡飲食和適量運動，建議諮詢營養師制定個人化計劃，避免極端節食。',
+                '運動': '適量運動有益健康，建議每週至少150分鐘中等強度運動，如快走、游泳或騎自行車。',
+                '營養': '均衡營養很重要，建議多吃蔬菜水果、全穀類，適量攝取蛋白質，減少加工食品。'
+            };
+            
+            // 尋找匹配的回應
+            for (const [keyword, response] of Object.entries(responses)) {
+                if (question.includes(keyword)) {
+                    return response;
+                }
+            }
+            
+            // 默認回應
+            return '感謝您的問題。建議您諮詢專業醫生獲得更準確的醫療建議。如需緊急醫療協助，請立即就醫。';
         }
         
         // 添加消息到聊天
