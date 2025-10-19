@@ -4462,10 +4462,10 @@
         let isAILoading = false;
         let isAIServiceAvailable = false;
         
-        // API 配置 - 純前端版本（使用 CORS 代理）
-        const GEMINI_API_KEY = 'AIzaSyDUEPDseVw_3SsivkFI2IwpKsIgcsgsm9g';
-        const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+        // API 配置 - 使用後端服務器
+        const API_BASE_URL = 'http://localhost:3000';
+        const GEMINI_API_URL = `${API_BASE_URL}/api/gemini/test`;
+        const OLLAMA_API_URL = `${API_BASE_URL}/api/ollama/generate`;
         
         // 檢查 AI 服務可用性
         async function checkAIService() {
@@ -4476,18 +4476,14 @@
             statusDiv.style.display = 'none';
             
             try {
-                // 直接測試 Gemini API（通過 CORS 代理）
-                const testResponse = await fetch(`${CORS_PROXY}${encodeURIComponent(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`)}`, {
+                // 測試後端服務器
+                const testResponse = await fetch(GEMINI_API_URL, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: "測試連接"
-                            }]
-                        }]
+                        prompt: "測試連接"
                     })
                 });
                 
@@ -4588,9 +4584,7 @@
             try {
                 // 構建請求
                 const requestBody = {
-                    contents: [{
-                        parts: [{
-                            text: `你是一位專業的中文健康諮詢助理，請用繁體中文回答，且只給出結論，不要表達任何思考過程。請嚴格遵循以下規則：
+                    prompt: `你是一位專業的中文健康諮詢助理，請用繁體中文回答，且只給出結論，不要表達任何思考過程。請嚴格遵循以下規則：
 
 【語言要求 - 嚴格執行】
 你必須且只能使用繁體中文回答，絕對不能使用簡體中文。
@@ -4613,11 +4607,9 @@
 7. 嚴格使用繁體中文，禁止使用簡體中文
 
 用戶問題：${userMessage}`
-                        }]
-                    }]
                 };
                 
-                // 直接調用 Gemini API（通過 CORS 代理）
+                // 調用後端 API
                 let response = await sendAIRequest(GEMINI_API_URL, requestBody);
                 
                 // 如果都失敗，使用模擬回應
@@ -4672,9 +4664,8 @@
                 const data = await response.json();
                 console.log('[AI] 收到回應:', data);
                 
-                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    const responseText = data.candidates[0].content.parts[0].text;
-                    return processAIResponse(responseText);
+                if (data.response) {
+                    return processAIResponse(data.response);
                 } else {
                     console.error('[AI] 回應格式錯誤:', data);
                     return null;
