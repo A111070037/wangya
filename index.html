@@ -4476,16 +4476,18 @@
             statusDiv.innerHTML = '⚠️ 正在檢查 AI 服務...';
             
             try {
-                // 測試後端服務器
-                const testResponse = await fetch(`${API_BASE_URL}/api/gemini/test`, {
+                // 直接測試 Gemini API（通過 CORS 代理）
+                const testResponse = await fetch(`${CORS_PROXY}${encodeURIComponent(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`)}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        model: "gemini-2.0-flash",
-                        prompt: "測試連接",
-                        stream: false
+                        contents: [{
+                            parts: [{
+                                text: "測試連接"
+                            }]
+                        }]
                     })
                 });
                 
@@ -4498,7 +4500,7 @@
                     // 即使 API 失敗，也啟用模擬模式
                     isAIServiceAvailable = true;
                     document.getElementById('sendButton').disabled = false;
-                    statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請檢查後端服務）';
+                    statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（API 密鑰可能有問題）';
                     statusDiv.style.display = 'block';
                     console.log('[AI] 啟用模擬模式');
                 }
@@ -4508,7 +4510,7 @@
                 // 即使連接失敗，也啟用模擬模式
                 isAIServiceAvailable = true;
                 document.getElementById('sendButton').disabled = false;
-                statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請檢查後端服務和 API 密鑰設置）';
+                statusDiv.innerHTML = '⚠️ 使用模擬 AI 模式（請檢查網路連接）';
                 statusDiv.style.display = 'block';
                 console.log('[AI] 啟用模擬模式');
             }
@@ -4591,8 +4593,9 @@
             try {
                 // 構建請求
                 const requestBody = {
-                    model: "gemini-2.0-flash",
-                    prompt: `你是一位專業的中文健康諮詢助理，請用繁體中文回答，且只給出結論，不要表達任何思考過程。請嚴格遵循以下規則：
+                    contents: [{
+                        parts: [{
+                            text: `你是一位專業的中文健康諮詢助理，請用繁體中文回答，且只給出結論，不要表達任何思考過程。請嚴格遵循以下規則：
 
 【語言要求 - 嚴格執行】
 你必須且只能使用繁體中文回答，絕對不能使用簡體中文。
@@ -4614,18 +4617,13 @@
 6. 不要在回答中包含任何程式碼或標記
 7. 嚴格使用繁體中文，禁止使用簡體中文
 
-用戶問題：${userMessage}`,
-                    stream: false
+用戶問題：${userMessage}`
+                        }]
+                    }]
                 };
                 
-                // 首先嘗試 Gemini
+                // 直接調用 Gemini API（通過 CORS 代理）
                 let response = await sendAIRequest(GEMINI_API_URL, requestBody);
-                
-                // 如果 Gemini 失敗，嘗試 Ollama
-                if (!response) {
-                    console.log('[AI] Gemini 失敗，嘗試 Ollama...');
-                    response = await sendAIRequest(OLLAMA_API_URL, requestBody);
-                }
                 
                 // 如果都失敗，使用模擬回應
                 if (!response) {
@@ -4657,7 +4655,11 @@
             try {
                 console.log(`[AI] 發送請求到: ${url}`);
                 
-                const response = await fetch(url, {
+                // 使用 CORS 代理
+                const proxyUrl = `${CORS_PROXY}${encodeURIComponent(`${url}?key=${GEMINI_API_KEY}`)}`;
+                console.log(`[AI] 使用代理: ${proxyUrl}`);
+                
+                const response = await fetch(proxyUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -4675,8 +4677,9 @@
                 const data = await response.json();
                 console.log('[AI] 收到回應:', data);
                 
-                if (data.response) {
-                    return processAIResponse(data.response);
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                    const responseText = data.candidates[0].content.parts[0].text;
+                    return processAIResponse(responseText);
                 } else {
                     console.error('[AI] 回應格式錯誤:', data);
                     return null;
